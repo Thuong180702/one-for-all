@@ -2,7 +2,7 @@
 
 > Native macOS notifications for the web apps that don't have a Mac client.
 
-**Status: pre-alpha.** v0.5 builds a real `.app` from source and sets itself up
+**Status: pre-alpha.** v0.6 builds a real `.app` from source and sets itself up
 from a first-run screen. It is not published to npm or Homebrew yet, so those
 install commands do not work — build it yourself (see [Install](#install)).
 
@@ -28,8 +28,9 @@ conversation.
 
 ## What it does
 
-- **Set up in one screen.** First launch shows a notification test and a grid of
-  services. Click one, log in, done — the terminal is optional.
+- **Set up in one screen.** First launch asks for the notification permission and
+  offers start-at-login — grant them, or skip and do it later from the menu bar.
+  Then pick your services from a grid, log in once, done. The terminal is optional.
 - **Real native notifications.** Not in-app toasts. macOS Notification Center,
   so Focus modes, Do Not Disturb, the lock screen, and Notification Center
   history all work the way you already expect.
@@ -93,10 +94,19 @@ npm install && npm run build
 cp -R dist/one-for-all.app /Applications/
 ```
 
-Then launch it from Finder. The setup screen opens on first run: press **Send a
-test** to trigger (and grant) the macOS notification permission, then click a
-service to add it. It opens that service's login page — log in once, and the
-session stays on disk. Reopen the screen any time with the **+** in the tab strip.
+Then launch it from Finder. A welcome screen opens on first run:
+
+1. **Notifications** — press *Allow* to fire a test notification, which is what
+   makes macOS ask for the permission. The row turns to *✓ Done* once macOS
+   accepts one. If nothing appeared on screen, *Open notification settings* takes
+   you to the exact pane.
+2. **Start at login** — the app only notifies while it is running.
+3. *Continue* (or *Skip for now* — everything stays reachable from the menu bar
+   under **Setup & Permissions…**).
+
+Then pick services from the grid. Adding one opens its login page; log in once
+and the session stays on disk. Reopen the picker any time with the **+** in the
+tab strip.
 
 > **This step is not optional.** macOS refuses to deliver notifications from a
 > raw `electron .` run — it fails with `UNErrorDomain error 1`, silently, from
@@ -159,6 +169,8 @@ notification opens `--url` in your browser.
     { "from": "22:00", "to": "08:00", "days": [1,2,3,4,5] }
   ],
   "history": true,               // false = keep no record of past notifications
+  "onboarded": true,             // false = show the welcome screen again on next launch
+  "notificationsOk": true,       // set once macOS has accepted a notification
   "services": [
     {
       "id": "messenger",
@@ -244,6 +256,25 @@ Three things carry most of the weight:
    "visible" even when its window is hidden, and chat apps only raise a
    notification while the document is hidden — so the app reports real
    visibility to each service instead, or Messenger would never notify.
+
+## Footprint
+
+One hosted service, window closed, idle: **~5 processes** — main, GPU, network,
+the tab strip, and the service itself. The tab strip and the setup screen are
+plain HTML with no framework, and the setup screen's renderer is destroyed the
+moment you close it.
+
+Most of the memory is the web app you asked it to host — Messenger's own bundle
+is a few hundred MB in any browser, and Chromium isolates its cross-origin frames
+into their own processes. What the app itself controls, it keeps small: disk
+cache capped at 64 MB, spellcheck off, one 2-second title poll per service, and a
+watchdog timer that only ticks once a minute. Nothing runs per-message except the
+notification itself.
+
+Site isolation is deliberately left on. Turning it off would collapse those extra
+frame processes, but it is the protection that keeps one site's script from
+reading another logged-in session's memory, and this app exists to hold several
+logged-in sessions at once.
 
 Clicking a native notification sends the shim back the id of the notification
 that produced it, and the shim fires that object's own `onclick`. That is the

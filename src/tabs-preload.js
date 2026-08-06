@@ -14,4 +14,8 @@ contextBridge.exposeInMainWorld('__setup', {
   remove: (id) => ipcRenderer.send('ofa:remove', id),
   test: () => ipcRenderer.send('ofa:test-notification'),
   close: () => ipcRenderer.send('ofa:setup-close'),
+  page: (name) => ipcRenderer.send('ofa:setup-page', name),
+  finishWelcome: () => ipcRenderer.send('ofa:onboarded'),
+  setLoginItem: (on) => ipcRenderer.send('ofa:login-item', on),
+  openNotificationSettings: () => ipcRenderer.send('ofa:notification-settings'),
 });

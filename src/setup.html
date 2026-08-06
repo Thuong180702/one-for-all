@@ -20,11 +20,12 @@
   h1 { margin: 0 0 4px; font-size: 22px; }
   h2 { margin: 30px 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--fg-dim); }
   p { margin: 0 0 14px; color: var(--fg-dim); }
-  .step {
-    background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px;
-  }
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .step + .step { margin-top: 10px; }
   .row { display: flex; align-items: center; gap: 12px; }
-  .row p { margin: 0; flex: 1; }
+  .row .text { flex: 1; }
+  .row .text b { display: block; color: var(--fg); font-weight: 600; }
+  .row .text span { color: var(--fg-dim); }
   button {
     padding: 7px 14px; border: 1px solid var(--line); border-radius: 7px;
     background: var(--card); color: var(--fg); font: inherit; cursor: default; white-space: nowrap;
@@ -32,6 +33,8 @@
   button:hover { border-color: var(--accent); }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button.link { border: 0; background: 0; color: var(--accent); padding: 0; }
+  button[disabled] { opacity: .5; }
+  .done { color: var(--ok); font-weight: 600; white-space: nowrap; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
   .tile {
     display: flex; align-items: center; gap: 10px; padding: 12px;
@@ -41,7 +44,7 @@
   .tile[data-added='true'] { opacity: .55; }
   .tile .name { flex: 1; font-weight: 500; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; }
-  .status { font-size: 13px; }
+  .status { font-size: 13px; margin: 10px 0 0; }
   .status.ok { color: var(--ok); }
   .status.bad { color: var(--bad); }
   form { display: flex; gap: 8px; margin-top: 10px; }
@@ -51,55 +54,99 @@
   }
   .foot { margin-top: 26px; display: flex; align-items: center; gap: 14px; }
   .hint { font-size: 12px; color: var(--fg-dim); }
+  [hidden] { display: none !important; }
 </style>
 <body>
   <div class="wrap">
-    <h1>Set up one-for-all</h1>
-    <p>Your web apps run here so macOS can notify you. You log in once, and stay logged in.</p>
+    <!-- page 1: permissions -->
+    <section id="welcome" hidden>
+      <h1>Welcome to one-for-all</h1>
+      <p>Two things to set up. Both can wait — you can skip and do them later.</p>
 
-    <h2>1 · Notifications</h2>
-    <div class="step">
-      <div class="row">
-        <p>macOS asks for permission the first time. Nothing works without it, so test it now.</p>
-        <button class="primary" id="test">Send a test</button>
+      <div class="step">
+        <div class="row">
+          <div class="text">
+            <b>Notifications</b>
+            <span>macOS asks once. Without it the app can hear your messages but never tell you.</span>
+          </div>
+          <button class="primary" id="allow">Allow</button>
+          <span class="done" id="allow-done" hidden>✓ Done</span>
+        </div>
+        <p class="status" id="allow-status" hidden></p>
+        <p class="status" hidden id="allow-fix">
+          <button class="link" id="open-settings">Open notification settings</button>
+        </p>
       </div>
-      <p class="status" id="result" hidden></p>
-    </div>
 
-    <h2>2 · Services</h2>
-    <div class="grid" id="grid"></div>
-    <form id="custom">
-      <input id="url" type="url" placeholder="https://… any other web app" />
-      <button>Add</button>
-    </form>
-    <p class="hint" style="margin-top:8px">
-      Adding one opens its login page. Log in once — the session is kept on disk.
-    </p>
+      <div class="step">
+        <div class="row">
+          <div class="text">
+            <b>Start at login</b>
+            <span>It only notifies while it is running, so it should start with your Mac.</span>
+          </div>
+          <button id="login-item">Turn on</button>
+          <span class="done" id="login-done" hidden>✓ On</span>
+        </div>
+      </div>
 
-    <div class="foot">
-      <button id="done" hidden>Done</button>
-      <span class="hint" id="tally"></span>
-    </div>
+      <div class="foot">
+        <button class="primary" id="continue">Continue</button>
+        <button class="link" id="skip">Skip for now</button>
+      </div>
+    </section>
+
+    <!-- page 2: services -->
+    <section id="services" hidden>
+      <h1>Add your services</h1>
+      <p>Each one runs in here, logged in and never throttled. That is what makes the notifications work.</p>
+
+      <div class="grid" id="grid"></div>
+      <form id="custom">
+        <input id="url" type="url" placeholder="https://… any other web app" />
+        <button>Add</button>
+      </form>
+      <p class="hint" style="margin-top:8px">
+        Adding one opens its login page. Log in once — the session is kept on disk.
+        Closing the window keeps the app running in the menu bar; only Quit stops the notifications.
+      </p>
+
+      <div class="foot">
+        <button id="done" hidden>Done</button>
+        <button class="link" id="back">Permissions</button>
+        <span class="hint" id="tally"></span>
+      </div>
+    </section>
   </div>
 
 <script>
   const $ = (id) => document.getElementById(id);
 
-  $('test').onclick = () => {
-    $('result').hidden = false;
-    $('result').className = 'status';
-    $('result').textContent = 'Sending…';
+  /* ------------------------------------------------------------ permissions */
+
+  $('allow').onclick = () => {
+    $('allow-status').hidden = false;
+    $('allow-status').className = 'status';
+    $('allow-status').textContent = 'Sending a test notification…';
     window.__setup.test();
   };
 
   window.__setup.onTestResult(({ ok, err }) => {
-    const el = $('result');
+    const el = $('allow-status');
     el.hidden = false;
     el.className = 'status ' + (ok ? 'ok' : 'bad');
     el.textContent = ok
-      ? '✓ Delivered. If you saw no banner, check System Settings › Notifications.'
-      : '✗ Blocked by macOS: ' + err;
+      ? 'Sent. If no banner appeared, the app is allowed but its alert style is off.'
+      : 'macOS refused: ' + err;
+    // Either way the next step is the same pane, so always offer it.
+    $('allow-fix').hidden = false;
   });
+
+  $('open-settings').onclick = () => window.__setup.openNotificationSettings();
+  $('login-item').onclick = () => window.__setup.setLoginItem(true);
+  $('continue').onclick = () => window.__setup.finishWelcome();
+  $('skip').onclick = () => window.__setup.finishWelcome();
+
+  /* --------------------------------------------------------------- services */
 
   $('custom').onsubmit = (e) => {
     e.preventDefault();
@@ -110,8 +157,19 @@
   };
 
   $('done').onclick = () => window.__setup.close();
+  $('back').onclick = () => window.__setup.page('welcome');
 
-  window.__setup.onState(({ presets, services, canClose }) => {
+  /* ------------------------------------------------------------------ state */
+
+  window.__setup.onState(({ page, presets, services, canClose, notificationsOk, openAtLogin }) => {
+    $('welcome').hidden = page !== 'welcome';
+    $('services').hidden = page !== 'services';
+
+    $('allow').hidden = notificationsOk;
+    $('allow-done').hidden = !notificationsOk;
+    $('login-item').hidden = openAtLogin;
+    $('login-done').hidden = !openAtLogin;
+
     const added = new Set(services.map((s) => s.id));
     const grid = $('grid');
     grid.textContent = '';

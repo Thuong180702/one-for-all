@@ -13,6 +13,8 @@ const DEFAULTS = {
   dnd: false, // manual override, toggled from the menu bar
   dndSchedule: [], // [{ from: "22:00", to: "08:00", days: [1,2,3,4,5] }]
   history: true,
+  onboarded: false, // has the welcome screen been through once
+  notificationsOk: false, // macOS accepted a notification at least once
   services: [],
 };
 

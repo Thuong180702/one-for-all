@@ -9,6 +9,10 @@ const presets = require('./presets');
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
+// Chromium sizes its disk cache off free space and will happily sit on hundreds of
+// megabytes per session. A chat client re-fetches its bundles anyway; 64 MB is plenty.
+app.commandLine.appendSwitch('disk-cache-size', String(64 * 1024 * 1024));
+
 const TAB_H = 34;
 const PIDFILE = path.join(config.DIR, 'ofa.pid');
 
@@ -17,6 +21,7 @@ const views = new Map(); // service.id -> { view, service, unread, lastSeen }
 const history = [];
 let win, tabsView, setupView, tray, active, quitting = false;
 let setupOpen = false;
+let setupPage = 'services';
 let pendingLogin = null; // service added from the UI, to switch to once it exists
 
 // Sites block the Electron UA; pretend to be plain Chrome.
@@ -38,6 +43,7 @@ function addService(service) {
       nodeIntegration: false,
       sandbox: true,
       backgroundThrottling: false,
+      spellcheck: false, // dictionaries and a spell-check pass we never look at
     },
   });
   const entry = {
@@ -119,7 +125,8 @@ function layout() {
 
 /* --------------------------------------------------------------- setup UI */
 
-function openSetup() {
+function openSetup(page = 'services') {
+  setupPage = page;
   if (!setupView) {
     setupView = new WebContentsView({
       webPreferences: {
@@ -145,6 +152,8 @@ function closeSetup() {
   if (!setupOpen) return;
   setupOpen = false;
   win.contentView.removeChildView(setupView);
+  setupView.webContents.close(); // a whole renderer process for a screen nobody is looking at
+  setupView = null;
   if (active) switchTo(active); // also re-runs layout and visibility
   else updateVisibility();
 }
@@ -152,9 +161,13 @@ function closeSetup() {
 function renderSetup() {
   if (!setupView) return;
   setupView.webContents.send('ofa:setup', {
+    page: setupPage,
     presets: Object.entries(presets).map(([id, p]) => ({ id, name: p.name })),
     services: cfg.services.map((s) => ({ id: s.id, name: s.name })),
     canClose: views.size > 0,
+    notificationsOk: !!cfg.notificationsOk,
+    // an unpackaged run has no login item to read, so fall back to what config says
+    openAtLogin: app.isPackaged ? app.getLoginItemSettings().openAtLogin : !!cfg.startAtLogin,
   });
 }
 
@@ -314,7 +327,28 @@ ipcMain.on('ofa:title', (e, title) => {
 });
 
 ipcMain.on('ofa:select', (_e, id) => switchTo(id));
-ipcMain.on('ofa:setup-open', openSetup);
+// fs.watch turns every one of these into applyConfig, which re-renders the UI.
+const patchConfig = (patch) => config.save({ ...config.load(), ...patch });
+
+ipcMain.on('ofa:setup-open', () => openSetup('services'));
+ipcMain.on('ofa:setup-page', (_e, page) => { setupPage = page; renderSetup(); });
+
+// Skip and Continue do the same thing: the welcome screen is never shown again,
+// and everything on it stays reachable from the tray.
+ipcMain.on('ofa:onboarded', () => {
+  if (!cfg.onboarded) patchConfig({ onboarded: true });
+  if (views.size) closeSetup();
+  else { setupPage = 'services'; renderSetup(); }
+});
+
+ipcMain.on('ofa:login-item', (_e, on) => {
+  if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: !!on });
+  patchConfig({ startAtLogin: !!on });
+  renderSetup();
+});
+
+ipcMain.on('ofa:notification-settings', () =>
+  shell.openExternal('x-apple.systempreferences:com.apple.Notifications-Settings.extension'));
 ipcMain.on('ofa:setup-close', closeSetup);
 
 ipcMain.on('ofa:add', (_e, what) => {
@@ -350,7 +384,10 @@ ipcMain.on('ofa:remove', (_e, id) => {
 ipcMain.on('ofa:test-notification', (e) => {
   const n = retain(new Notification({ title: 'one-for-all', body: 'Notifications are working.' }));
   const reply = (r) => !e.sender.isDestroyed() && e.sender.send('ofa:test-result', r);
-  n.on('show', () => reply({ ok: true }));
+  n.on('show', () => {
+    reply({ ok: true });
+    if (!cfg.notificationsOk) patchConfig({ notificationsOk: true });
+  });
   n.on('failed', (_ev, err) => reply({ ok: false, err: String(err) }));
   n.show();
 });
@@ -436,6 +473,7 @@ function buildTrayMenu() {
       },
     },
     { label: 'Reload All', click: reloadAll },
+    { label: 'Setup & Permissions…', click: () => { show(); openSetup('welcome'); } },
     { type: 'separator' },
     { label: 'Quit one-for-all', accelerator: 'Cmd+Q', click: () => app.quit() },
   ]));
@@ -529,7 +567,8 @@ app.whenReady().then(() => {
   });
 
   cfg.services.filter((s) => s.enabled).forEach(addService);
-  if (!views.size) openSetup(); // first run, or everything removed
+  if (!cfg.onboarded) openSetup('welcome');
+  else if (!views.size) openSetup('services'); // everything removed
   buildAppMenu();
   updateBadge();
   layout();
