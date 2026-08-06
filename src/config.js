@@ -9,7 +9,9 @@ const FILE = path.join(DIR, 'config.json');
 const DEFAULTS = {
   startAtLogin: true,
   globalShortcut: 'Cmd+Shift+Space',
-  dnd: false,
+  dnd: false, // manual override, toggled from the menu bar
+  dndSchedule: [], // [{ from: "22:00", to: "08:00", days: [1,2,3,4,5] }]
+  history: true,
   services: [],
 };
 
@@ -18,6 +20,7 @@ const SERVICE_DEFAULTS = {
   muted: false,
   badge: true,
   sound: 'default',
+  reloadIfIdleMinutes: 0, // 0 = never
   notify: { allow: [], deny: [], priority: [] },
 };
 
@@ -66,15 +69,36 @@ const matches = (patterns, text) =>
     }
   });
 
-function shouldNotify(service, cfg, { title = '', body = '' } = {}) {
+const toMinutes = (hhmm) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+
+// ponytail: `days` is checked against the day it is *now*, so a Mon–Fri 22:00–08:00
+// window stops at midnight Friday rather than spilling into Saturday morning.
+// Predictable beats clever; split the window in config if you need the spillover.
+function inWindow(w, now) {
+  const from = toMinutes(w.from);
+  const to = toMinutes(w.to);
+  if (from === null || to === null) return false;
+  if (w.days && !w.days.includes(now.getDay())) return false;
+  const mins = now.getHours() * 60 + now.getMinutes();
+  return from <= to ? mins >= from && mins < to : mins >= from || mins < to;
+}
+
+function isDndActive(cfg, now = new Date()) {
+  return !!cfg.dnd || (cfg.dndSchedule || []).some((w) => inWindow(w, now));
+}
+
+function shouldNotify(service, cfg, { title = '', body = '' } = {}, now = new Date()) {
   if (service.muted) return false;
   const text = `${title} ${body}`;
   const { allow, deny, priority } = service.notify || SERVICE_DEFAULTS.notify;
   if (matches(priority, text)) return true;
-  if (cfg.dnd) return false;
+  if (isDndActive(cfg, now)) return false;
   if (matches(deny, text)) return false;
   if (allow && allow.length && !matches(allow, text)) return false;
   return true;
 }
 
-module.exports = { DIR, FILE, load, save, withDefaults, parseUnread, shouldNotify };
+module.exports = { DIR, FILE, load, save, withDefaults, parseUnread, shouldNotify, isDndActive };

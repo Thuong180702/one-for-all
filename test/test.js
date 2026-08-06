@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { parseUnread, shouldNotify, withDefaults } = require('../src/config');
+const { parseUnread, shouldNotify, withDefaults, isDndActive } = require('../src/config');
 
 // unread parsing — the only thing standing between us and a wrong Dock badge
 assert.strictEqual(parseUnread('(3) Messenger'), 3);
@@ -31,5 +31,41 @@ assert.ok(shouldNotify({ ...svc, notify: { ...svc.notify, deny: ['[unclosed'] } 
 // defaults get filled in, and partition is derived from id
 assert.strictEqual(svc.partition, 'persist:x');
 assert.strictEqual(svc.badge, true);
+assert.strictEqual(svc.reloadIfIdleMinutes, 0); // watchdog is opt-in
+
+/* ------------------------------------------------------------ DND schedule */
+// 2026-08-06 is a Thursday (day 4).
+const at = (h, m = 0, day = 6) => new Date(2026, 7, day, h, m);
+
+assert.strictEqual(isDndActive({}), false);
+assert.strictEqual(isDndActive({ dnd: true }), true); // manual override wins
+
+// a window that wraps past midnight
+const night = { dndSchedule: [{ from: '22:00', to: '08:00' }] };
+assert.strictEqual(isDndActive(night, at(23)), true);
+assert.strictEqual(isDndActive(night, at(2)), true);
+assert.strictEqual(isDndActive(night, at(8)), false); // `to` is exclusive
+assert.strictEqual(isDndActive(night, at(21, 59)), false);
+assert.strictEqual(isDndActive(night, at(22)), true);
+
+// a same-day window
+const lunch = { dndSchedule: [{ from: '12:00', to: '13:00' }] };
+assert.strictEqual(isDndActive(lunch, at(12, 30)), true);
+assert.strictEqual(isDndActive(lunch, at(13)), false);
+assert.strictEqual(isDndActive(lunch, at(11, 59)), false);
+
+// days filter — Thu Aug 6 2026 is day 4, Sat Aug 8 is day 6
+const weekdays = { dndSchedule: [{ from: '22:00', to: '08:00', days: [1, 2, 3, 4, 5] }] };
+assert.strictEqual(isDndActive(weekdays, at(23, 0, 6)), true); // Thursday
+assert.strictEqual(isDndActive(weekdays, at(23, 0, 8)), false); // Saturday
+
+// malformed entries must not throw or silently swallow everything
+assert.strictEqual(isDndActive({ dndSchedule: [{ from: 'nope', to: '08:00' }] }, at(2)), false);
+assert.strictEqual(isDndActive({ dndSchedule: [{}] }, at(2)), false);
+
+// and the schedule actually gates notifications
+assert.ok(!shouldNotify(svc, night, { title: 'Bob' }, at(23)));
+assert.ok(shouldNotify(svc, night, { title: 'Bob' }, at(12)));
+assert.ok(shouldNotify(prio, night, { title: 'Mom' }, at(23))); // priority beats the schedule
 
 console.log('ok');

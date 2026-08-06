@@ -1,6 +1,6 @@
 {
   "name": "one-for-all",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Native macOS notifications for the web apps that don't have a Mac client",
   "license": "MIT",
   "main": "src/main.js",

@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  :root {
+    --bg: #ececec; --fg: #333; --fg-dim: #777; --active: #fff; --line: #d3d3d3; --badge: #e0352b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #2a2a2e; --fg: #ddd; --fg-dim: #888; --active: #3d3d42; --line: #1d1d20; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; display: flex; align-items: stretch; height: 100vh; overflow: hidden;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+    font: 13px -apple-system, system-ui, sans-serif; color: var(--fg); user-select: none;
+  }
+  button {
+    display: flex; align-items: center; gap: 6px; padding: 0 14px;
+    border: 0; border-right: 1px solid var(--line); background: transparent;
+    font: inherit; color: var(--fg-dim); cursor: default; white-space: nowrap;
+  }
+  button:hover { color: var(--fg); }
+  button[aria-selected='true'] { background: var(--active); color: var(--fg); font-weight: 500; }
+  .badge {
+    min-width: 17px; padding: 1px 5px; border-radius: 9px;
+    background: var(--badge); color: #fff; font-size: 11px; font-weight: 600; text-align: center;
+  }
+  .muted { opacity: 0.45; }
+  .empty { padding: 0 14px; align-self: center; color: var(--fg-dim); }
+</style>
+<body></body>
+<script>
+  window.__tabs.onUpdate((list) => {
+    document.body.textContent = '';
+    if (!list.length) {
+      const p = document.createElement('span');
+      p.className = 'empty';
+      p.textContent = 'No services — run: ofa add messenger';
+      document.body.append(p);
+      return;
+    }
+    for (const s of list) {
+      const b = document.createElement('button');
+      b.ariaSelected = String(s.active);
+      if (s.muted) b.classList.add('muted');
+      b.append(s.name);
+      if (s.unread) {
+        const n = document.createElement('span');
+        n.className = 'badge';
+        n.textContent = s.unread;
+        b.append(n);
+      }
+      b.onclick = () => window.__tabs.select(s.id);
+      document.body.append(b);
+    }
+  });
+</script>

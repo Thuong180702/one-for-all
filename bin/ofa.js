@@ -1,14 +1,30 @@
 #!/usr/bin/env node
 const { spawn } = require('child_process');
+const dns = require('dns').promises;
+const fs = require('fs');
 const path = require('path');
 const config = require('../src/config');
 const presets = require('../src/presets');
+
+const APP = path.join(__dirname, '..');
+const PIDFILE = path.join(config.DIR, 'ofa.pid');
 
 const [cmd, ...args] = process.argv.slice(2);
 const flag = (name) => {
   const i = args.indexOf(`--${name}`);
   return i === -1 ? null : args[i + 1];
 };
+const launch = (extra = []) =>
+  spawn(require('electron'), [APP, ...extra], { detached: true, stdio: 'ignore' }).unref();
+
+function isRunning() {
+  try {
+    process.kill(Number(fs.readFileSync(PIDFILE, 'utf8')), 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const commands = {
   add() {
@@ -61,8 +77,70 @@ const commands = {
     proc.on('exit', (code) => process.exit(code || 0));
   },
 
+  notify() {
+    const title = args.find((a) => !a.startsWith('--'));
+    if (!title) {
+      console.error('Usage: ofa notify "Title" [--body "..."] [--url https://...]');
+      process.exit(1);
+    }
+    // The running instance picks this out of argv via Electron's second-instance event.
+    launch(['--ofa-notify', JSON.stringify({ title, body: flag('body'), url: flag('url') })]);
+  },
+
+  async doctor() {
+    const ok = (pass, msg) => console.log(`${pass ? '✓' : '✗'} ${msg}`);
+    let fatal = 0;
+
+    const cfg = config.load();
+    ok(true, `config: ${config.FILE}`);
+    const running = isRunning();
+    ok(running, running ? 'app is running' : 'app is not running (start it with: ofa)');
+
+    try {
+      require('electron');
+      ok(true, 'electron binary present');
+    } catch {
+      ok(false, 'electron binary missing — run: npm install');
+      fatal++;
+    }
+
+    if (!cfg.services.length) {
+      ok(false, 'no services configured (ofa add messenger)');
+      fatal++;
+    }
+    for (const s of cfg.services) {
+      let host;
+      try {
+        host = new URL(s.url).hostname;
+      } catch {
+        ok(false, `${s.id}: invalid url ${s.url}`);
+        fatal++;
+        continue;
+      }
+      if (!host) { // file:// and friends have no host to resolve
+        ok(true, `${s.id}: ${s.url}`);
+        continue;
+      }
+      try {
+        await dns.lookup(host);
+        ok(true, `${s.id}: ${host} resolves`);
+      } catch {
+        ok(false, `${s.id}: cannot resolve ${host}`);
+        fatal++;
+      }
+    }
+
+    const dnd = config.isDndActive(cfg);
+    ok(!dnd, dnd ? 'Do Not Disturb is ON — notifications are suppressed' : 'Do Not Disturb is off');
+    for (const s of cfg.services.filter((x) => x.muted)) ok(false, `${s.id} is muted`);
+
+    console.log('\nmacOS notification permission cannot be read from here.');
+    console.log('Test it end to end with:  ofa notify "test"');
+    process.exit(fatal ? 1 : 0);
+  },
+
   launch() {
-    spawn(require('electron'), [path.join(__dirname, '..')], { detached: true, stdio: 'ignore' }).unref();
+    launch();
   },
 
   help() {
@@ -72,7 +150,9 @@ const commands = {
   ofa add <preset|--url URL>   add a service   [${Object.keys(presets).join(' ')}]
   ofa list                     list configured services
   ofa remove <id>              remove a service
-  ofa config                   edit ${config.FILE}`);
+  ofa config                   edit ${config.FILE}
+  ofa notify "Title" [--body B] [--url U]   push a notification
+  ofa doctor                   check config, connectivity, DND`);
   },
 };
 

@@ -2,9 +2,8 @@
 
 > Native macOS notifications for the web apps that don't have a Mac client.
 
-**Status: pre-alpha.** v0.1 runs from source (`npm install && npm start`). It is
+**Status: pre-alpha.** v0.2 runs from source (`npm install && npm start`). It is
 not published to npm or Homebrew yet, so the install commands below do not work.
-Commands marked *(v0.2)* are not implemented.
 
 [Tiếng Việt →](README.vi.md)
 
@@ -40,31 +39,42 @@ conversation.
 - **One login per service, kept separate.** Each service gets its own isolated
   Electron session partition, so cookies never mix and you can run two accounts
   of the same service side by side.
-- **Unread counts in the menu bar and Dock.** Aggregated across services.
+- **Unread counts in the tab strip, menu bar, and Dock.** Aggregated across
+  services.
+- **Quiet hours that are actually quiet.** Per-service mute, keyword allow/deny
+  filters, a DND schedule, and a priority list that cuts through all of it.
 - **Everything local.** No account, no server, no telemetry. Sessions and
   config live on your disk.
 
-## Supported services (v0.1 target)
+## Supported services
 
-Any web app can be added by URL. These ship preconfigured because they need
-per-site tweaks (user agent, unread parsing, deep-link shape):
+Any web app can be added by URL — `ofa add --url ...`. There is no per-site code:
+notifications come from whatever the page emits through the Web Notification API,
+and unread counts come from a generic `(N)`-in-the-tab-title regex. The names
+below just ship as presets so you can type `ofa add gmail`.
 
 | Service | Notifications | Unread badge | Deep link on click |
 |---|---|---|---|
-| Messenger | Web Notification API | title + DOM | thread URL |
-| Zalo Web | title parsing | title | conversation, best effort |
-| Gmail / Google Workspace | Web Notification API | title | message URL |
-| Outlook Web | Web Notification API | title | message URL |
-| Slack (web) | Web Notification API | title | channel URL |
-| Discord (web) | Web Notification API | title | channel URL |
-| Telegram Web | Web Notification API | title | chat URL |
-| WhatsApp Web | Web Notification API | title | chat URL |
-| Generic (any URL) | whichever it emits | title regex | page URL |
+| Messenger | yes | yes | thread |
+| Gmail / Google Workspace | yes | yes | message |
+| Outlook Web | yes | yes | message |
+| Slack (web) | yes | yes | channel |
+| Discord (web) | yes | yes | channel |
+| Telegram Web | yes | yes | chat |
+| WhatsApp Web | yes | yes | chat |
+| Zalo Web | **no** | yes | — |
+| Generic (any URL) | if the site uses the API | if it puts `(N)` in the title | wherever its own handler goes |
 
-> Zalo Web does not use the Notification API and re-renders aggressively, so its
-> adapter is heuristic (unread-count-in-title plus a DOM watcher). It is the
-> most likely thing to break on a Zalo redeploy — see
-> [`adapters/zalo.js`](src/adapters) and please open an issue when it does.
+Deep links are not hardcoded: clicking a native notification replays the page's
+own `onclick`, which is what already knows how to open the right thread. So a
+site works the moment it uses the standard API, and keeps working when it
+redeploys.
+
+> **Zalo Web does not use the Notification API**, so it currently gets an unread
+> badge but no popups. Making it work needs a DOM watcher for its conversation
+> list, which is not built yet. Everything else in the table is verified only in
+> the sense that those sites use the standard API — real-account testing is
+> still wanted.
 
 ## Install
 
@@ -94,15 +104,13 @@ one-for-all add --url https://mail.proton.me --name "Proton Mail"
 one-for-all list                 # list configured services
 one-for-all remove slack
 one-for-all config               # open config.json in $EDITOR
-one-for-all notify "Build done" --body "3m42s"   # (v0.2)
-one-for-all doctor               # (v0.2) check permissions, throttling, connectivity
+one-for-all notify "Build done" --body "3m42s" --url https://ci.example.com
+one-for-all doctor               # check config, connectivity, DND, muted services
 ```
 
-In v0.1 there is no tab strip: switch services from the menu bar icon or with
-<kbd>⌘</kbd><kbd>1</kbd>…<kbd>9</kbd>, and restart after editing services.
-
 `one-for-all notify` is deliberately generic: it is a one-liner for getting any
-script, cron job, or CI hook into the same notification stream.
+script, cron job, or CI hook into the same notification stream. Clicking such a
+notification opens `--url` in your browser.
 
 ### Keyboard
 
@@ -122,12 +130,15 @@ script, cron job, or CI hook into the same notification stream.
   "startAtLogin": true,
   "windowMode": "window",        // "window" | "menubar"
   "globalShortcut": "Cmd+Shift+Space",
-  "dnd": false,                  // toggled from the menu bar or Cmd+Shift+D
+  "dnd": false,                  // manual override, toggled from the menu bar
+  "dndSchedule": [              // quiet hours; windows may wrap past midnight
+    { "from": "22:00", "to": "08:00", "days": [1,2,3,4,5] }
+  ],
+  "history": true,               // false = keep no record of past notifications
   "services": [
     {
       "id": "messenger",
       "name": "Messenger",
-      "adapter": "messenger",             // or "generic"
       "url": "https://www.messenger.com/",
       "partition": "persist:messenger",   // change this for a 2nd account
       "enabled": true,
@@ -139,49 +150,62 @@ script, cron job, or CI hook into the same notification stream.
         "deny": ["^.*reacted to your message$"],
         "priority": ["Mom", "@here"]      // these bypass DND
       },
+      "reloadIfIdleMinutes": 0,           // 0 = off; see the caveat below
       "userAgent": null                   // override if the site blocks Electron
     }
   ]
 }
 ```
 
-Restart the app after editing (hot-reload is v0.2).
+Edits are picked up live — no restart. Adding, removing, and re-pointing services
+all take effect on save.
+
+`dndSchedule` days are matched against the day it is *now*, so a Mon–Fri
+22:00–08:00 window stops at midnight Friday rather than running into Saturday
+morning. Split the window if you want the spillover.
+
+`reloadIfIdleMinutes` reloads a service that has gone quiet. "Quiet" means no
+notification, no tab-title change, and no completed HTTP request — but frames on
+an already-upgraded WebSocket are invisible to it, so a perfectly healthy
+Messenger can look idle. That is why it defaults to off. Turn it on for services
+you have actually seen go stale.
 
 ## How it works
 
 ```
 ┌──────────────────────────── Electron main ────────────────────────────┐
 │                                                                       │
-│   config.json ──► ServiceManager ──► one WebContentsView per service  │
-│                        │                     │                        │
-│                        │              persist:<id> session           │
-│                        │              (isolated cookies/storage)      │
-│                        ▼                     │                        │
-│                   Watchdog ◄─────────────────┤ did-fail-load,         │
-│                  (sleep/wake,                │ power-monitor resume   │
-│                   idle reload)               │                        │
-│                        ▲                     ▼                        │
-│                        │              preload.js (contextIsolation)   │
-│                        │               • patches window.Notification  │
-│                        │               • watches document.title       │
-│                        │               • adapter DOM hooks            │
-│                        │                     │ IPC                    │
-│                        ▼                     ▼                        │
-│   Tray + Dock badge ◄── NotificationRouter ──► electron.Notification  │
-│                          (filters, DND,            (real NSUser-      │
-│                           dedupe, history)          Notification)     │
-│                                    │                                  │
-│                          click ────┴──► focus app → switch service    │
-│                                          → navigate to deep link      │
+│   config.json ──► one WebContentsView per service                     │
+│    (fs.watch,           │                                             │
+│     hot-reload)         ├──► persist:<id> session                     │
+│                         │     (isolated cookies/storage)              │
+│                         │                                             │
+│   Watchdog ◄────────────┤  did-fail-load, power-monitor resume,       │
+│  (sleep/wake,           │  idle timer                                 │
+│   idle reload)          ▼                                             │
+│                    preload.js  (contextIsolation, sandbox)            │
+│                      • injects a Notification shim into the main world│
+│                      • polls document.title for "(N)"                 │
+│                         │ IPC                                         │
+│                         ▼                                             │
+│   Tray ─┐          notify()  ──────────────► electron.Notification    │
+│   Dock ─┼──────────  • allow/deny/priority       (real NSUser-        │
+│   Tabs ─┘            • DND + schedule             Notification)       │
+│                      • history (last 200)             │               │
+│                                                       ▼               │
+│                              click ──► focus + switch service ──►     │
+│                                        replay the page's onclick      │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
 Three things carry most of the weight:
 
-1. **`preload.js` replaces `window.Notification`** with a shim that keeps the
-   same API surface (so the page thinks it succeeded) but forwards `title`,
-   `body`, `icon`, `tag`, and `data` over IPC instead of drawing anything. The
-   main process decides what actually becomes a macOS notification.
+1. **A Notification shim is injected into the page's main world.** It keeps the
+   same API surface (so the page thinks it succeeded) but forwards the title and
+   body over IPC instead of drawing anything, and the main process decides what
+   becomes a macOS notification. Because `contextIsolation` is on, the preload
+   cannot just assign `window.Notification` — it injects the shim with
+   `webFrame.executeJavaScript` and talks to it over a `contextBridge` channel.
 2. **`session.setPermissionRequestHandler` auto-grants** `notifications` to
    configured services, so you never see the site's own permission prompt and
    the site never falls back to "notifications blocked" mode.
@@ -189,9 +213,9 @@ Three things carry most of the weight:
    the WebSocket alive when the window is hidden or the Mac is idle. A browser
    tab cannot do this; that is the entire gap this app fills.
 
-For sites with no Notification API (Zalo), the adapter falls back to diffing
-`document.title` for an unread count and watching the conversation list for new
-rows. Less reliable, clearly marked as such in the UI.
+Clicking a native notification sends the shim back the id of the notification
+that produced it, and the shim fires that object's own `onclick`. That is the
+whole deep-link mechanism — no per-site URL templates to maintain.
 
 ## Comparison
 
@@ -217,8 +241,9 @@ surface to audit.
   in its own isolated session, same as a browser.
 - No network calls to anything except the services you configure. No analytics,
   no crash reporting, no update ping unless you enable it.
-- Notification bodies are held in memory and in the local history file only.
-  Set `"history": false` to keep nothing.
+- Notification history (last 200) is kept in memory only and dies with the
+  process — nothing is written to disk. Set `"history": false` to keep nothing
+  at all.
 - Config and sessions: `~/Library/Application Support/one-for-all/`.
 
 ## License
