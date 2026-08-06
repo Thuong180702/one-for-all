@@ -225,19 +225,30 @@ function watchConfig() {
 
 /* ----------------------------------------------------------- notifications */
 
+// macOS pulls a notification back out of Notification Center when Electron's
+// wrapper object is garbage collected, so a fire-and-forget `new Notification()`
+// can play its sound and then vanish before you ever look at it. Holding the last
+// few is the whole fix; they are also what a click handler needs to stay alive for.
+const live = [];
+function retain(n) {
+  live.push(n);
+  if (live.length > 50) live.shift();
+  return n;
+}
+
 function notify({ title, body, sound, serviceId, onClick }) {
   if (cfg.history) {
     history.unshift({ at: Date.now(), serviceId, title, body });
     history.length = Math.min(history.length, 200);
   }
-  const n = new Notification({
+  const n = retain(new Notification({
     title,
     subtitle: views.get(serviceId)?.service.name || '',
     body: body || '',
     silent: sound === null,
     // macOS takes a sound *name* here ("Ping", "Glass"); "default" means leave it alone.
     ...(sound && sound !== 'default' ? { sound } : {}),
-  });
+  }));
   n.on('click', onClick);
   // Silence here is the worst failure mode this app has: everything looks fine
   // and nothing ever pops. UNErrorDomain 1 = macOS is blocking us.
@@ -337,7 +348,7 @@ ipcMain.on('ofa:remove', (_e, id) => {
 // Deliberately bypasses notify(): this tests whether macOS will deliver at all,
 // so DND and the per-service filters must not be able to swallow it.
 ipcMain.on('ofa:test-notification', (e) => {
-  const n = new Notification({ title: 'one-for-all', body: 'Notifications are working.' });
+  const n = retain(new Notification({ title: 'one-for-all', body: 'Notifications are working.' }));
   const reply = (r) => !e.sender.isDestroyed() && e.sender.send('ofa:test-result', r);
   n.on('show', () => reply({ ok: true }));
   n.on('failed', (_ev, err) => reply({ ok: false, err: String(err) }));
