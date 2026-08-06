@@ -44,7 +44,9 @@ function addService(service) {
   wc.setBackgroundThrottling(false);
   // Every load restarts the unread count from zero; the settle window keeps a
   // reload (or a wake-from-sleep) from replaying the whole backlog as popups.
-  wc.on('did-finish-load', () => { entry.loadedAt = Date.now(); });
+  // did-finish-load never fires on messenger.com (it aborts the initial load);
+  // did-stop-loading does, and is what we actually mean by "reloaded just now".
+  wc.on('did-stop-loading', () => { entry.loadedAt = Date.now(); });
 
   // ponytail: liveness = completed HTTP requests. Frames on an already-upgraded
   // WebSocket are invisible here, which is why reloadIfIdleMinutes defaults to off.
@@ -91,6 +93,17 @@ function switchTo(id) {
   layout();
   entry.view.webContents.focus();
   renderTabs();
+  updateVisibility();
+}
+
+// A service is "on screen" only if the window is up and it is the front tab.
+// Everything else must look hidden to the page, or it will never notify.
+function updateVisibility() {
+  const shown = !!win && win.isVisible();
+  for (const [id, entry] of views) {
+    const wc = entry.view.webContents;
+    if (!wc.isDestroyed()) wc.send('ofa:visibility', shown && id === active);
+  }
 }
 
 function layout() {
@@ -180,6 +193,12 @@ function notify({ title, body, sound, serviceId, onClick }) {
 }
 
 const findEntry = (senderId) => [...views.values()].find((v) => v.view.webContents.id === senderId);
+
+// Preload reruns on every navigation, so it asks rather than us guessing when to tell it.
+ipcMain.on('ofa:hello', (e) => {
+  const entry = findEntry(e.sender.id);
+  if (entry) e.sender.send('ofa:visibility', win.isVisible() && entry.service.id === active);
+});
 
 ipcMain.on('ofa:notify', (e, payload) => {
   const entry = findEntry(e.sender.id);
@@ -364,6 +383,7 @@ app.whenReady().then(() => {
     alwaysOnTop: menubar,
   });
   win.on('resize', layout);
+  for (const ev of ['show', 'hide', 'minimize', 'restore']) win.on(ev, updateVisibility);
   win.on('close', (e) => {
     // Closing must not quit — the whole point is staying connected in the background.
     if (quitting) return;

@@ -232,6 +232,10 @@ Three things carry most of the weight:
 4. **It ships as a signed `.app` bundle.** macOS grants notification permission
    per bundle identifier, so an unpackaged run has no identity to grant it to
    and every notification fails. `scripts/build-app.js` gives it one.
+5. **The page is told when it is off screen.** Chromium calls a hosted view
+   "visible" even when its window is hidden, and chat apps only raise a
+   notification while the document is hidden — so the app reports real
+   visibility to each service instead, or Messenger would never notify.
 
 Clicking a native notification sends the shim back the id of the notification
 that produced it, and the shim fires that object's own `onclick`. That is the

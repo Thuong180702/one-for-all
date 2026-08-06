@@ -3,6 +3,10 @@ const { contextBridge, ipcRenderer, webFrame } = require('electron');
 contextBridge.exposeInMainWorld('__ofa', {
   notify: (payload) => ipcRenderer.send('ofa:notify', payload),
   onClick: (cb) => ipcRenderer.on('ofa:click', (_e, id) => cb(id)),
+  onVisibility: (cb) => {
+    ipcRenderer.on('ofa:visibility', (_e, visible) => cb(visible));
+    ipcRenderer.send('ofa:hello'); // ask for the current state; preload reruns on every navigation
+  },
 });
 
 // Runs in the page's main world. contextIsolation keeps preload out of it, so the
@@ -54,6 +58,22 @@ function shim() {
     value: OfaNotification,
     writable: true,
     configurable: true,
+  });
+
+  // Chromium reports a WebContentsView as "visible" even when its window is
+  // hidden or another service is in front. Chat apps only raise a Notification
+  // while the document is hidden, so without this Messenger silently decides you
+  // are already looking at the conversation and never notifies at all.
+  let visible = true;
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => (visible ? 'visible' : 'hidden'),
+  });
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => !visible });
+  window.__ofa.onVisibility((v) => {
+    if (v === visible) return;
+    visible = v;
+    document.dispatchEvent(new Event('visibilitychange'));
   });
 }
 
