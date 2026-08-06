@@ -173,6 +173,9 @@ function notify({ title, body, sound, serviceId, onClick }) {
     ...(sound && sound !== 'default' ? { sound } : {}),
   });
   n.on('click', onClick);
+  // Silence here is the worst failure mode this app has: everything looks fine
+  // and nothing ever pops. UNErrorDomain 1 = macOS is blocking us.
+  n.on('failed', (_e, err) => console.error(`[ofa] notification failed: ${err}\n[ofa] System Settings > Notifications > ${app.getName()} — allow notifications.`));
   n.show();
 }
 
@@ -231,14 +234,9 @@ ipcMain.on('ofa:select', (_e, id) => switchTo(id));
 
 // `ofa notify ...` relaunches the app; the running instance picks the payload out of argv.
 function handleCliNotify(argv) {
-  const i = argv.indexOf('--ofa-notify');
-  if (i === -1) return false;
-  let payload;
-  try {
-    payload = JSON.parse(argv[i + 1]);
-  } catch {
-    return true;
-  }
+  const payload = config.parseCliNotify(argv);
+  if (!payload) return false;
+  if (!payload.title) return true;
   notify({
     title: payload.title,
     body: payload.body,

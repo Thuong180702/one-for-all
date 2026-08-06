@@ -2,8 +2,9 @@
 
 > Native macOS notifications for the web apps that don't have a Mac client.
 
-**Status: pre-alpha.** v0.3 runs from source (`npm install && npm start`). It is
-not published to npm or Homebrew yet, so the install commands below do not work.
+**Status: pre-alpha.** v0.4 builds a real `.app` from source. It is not published
+to npm or Homebrew yet, so those install commands do not work — build it yourself
+(see [Install](#install)).
 
 [Tiếng Việt →](README.vi.md)
 
@@ -85,21 +86,29 @@ redeploys.
 ## Install
 
 ```bash
-npm install -g one-for-all
+git clone https://github.com/Thuong180702/one-for-all && cd one-for-all
+npm install && npm run build
+cp -R dist/one-for-all.app /Applications/
 ```
+
+Then launch it once from Finder and grant the Notifications permission.
+
+> **This step is not optional.** macOS refuses to deliver notifications from a
+> raw `electron .` run — it fails with `UNErrorDomain error 1`, silently, from
+> the app's point of view. A notification client needs its own bundle
+> identifier and a code signature, which is what `npm run build` produces. If
+> nothing ever pops, run `ofa doctor` first; it checks for this.
+
+`npm run build` copies the Electron runtime you already installed, drops our
+source into it, swaps in our icon and bundle id, and ad-hoc signs the result.
+No extra build dependency. Requires macOS 12+ (Apple Silicon and Intel).
+
+Eventually:
 
 ```bash
-brew install --cask one-for-all
+npm install -g one-for-all      # not published yet
+brew install --cask one-for-all # not published yet
 ```
-
-Then:
-
-```bash
-one-for-all
-```
-
-Requires macOS 12+ (Apple Silicon and Intel). First launch asks for the
-Notifications permission — grant it, or nothing works.
 
 ## Usage
 
@@ -220,6 +229,9 @@ Three things carry most of the weight:
 3. **`webContents.setBackgroundThrottling(false)` + `powerSaveBlocker`** keep
    the WebSocket alive when the window is hidden or the Mac is idle. A browser
    tab cannot do this; that is the entire gap this app fills.
+4. **It ships as a signed `.app` bundle.** macOS grants notification permission
+   per bundle identifier, so an unpackaged run has no identity to grant it to
+   and every notification fails. `scripts/build-app.js` gives it one.
 
 Clicking a native notification sends the shim back the id of the notification
 that produced it, and the shim fires that object's own `onclick`. That is the

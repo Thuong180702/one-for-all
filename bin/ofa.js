@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../src/config');
 const presets = require('../src/presets');
+const pkg = require('../package.json');
 
 const APP = path.join(__dirname, '..');
 const PIDFILE = path.join(config.DIR, 'ofa.pid');
@@ -14,8 +15,17 @@ const flag = (name) => {
   const i = args.indexOf(`--${name}`);
   return i === -1 ? null : args[i + 1];
 };
-const launch = (extra = []) =>
-  spawn(require('electron'), [APP, ...extra], { detached: true, stdio: 'ignore' }).unref();
+// macOS will not deliver notifications from an unpackaged `electron .` run, so
+// always prefer a built bundle. `-n` starts a second copy that hands its argv to
+// the running one through the single-instance lock, then quits.
+const BUNDLE = [`/Applications/${pkg.name}.app`, path.join(APP, 'dist', `${pkg.name}.app`)]
+  .find((p) => fs.existsSync(p));
+const launch = (extra = []) => {
+  const [cmd, argv] = BUNDLE
+    ? ['open', ['-n', '-a', BUNDLE, ...(extra.length ? ['--args', ...extra] : [])]]
+    : [require('electron'), [APP, ...extra]];
+  spawn(cmd, argv, { detached: true, stdio: 'ignore' }).unref();
+};
 
 function isRunning() {
   try {
@@ -94,7 +104,7 @@ const commands = {
       process.exit(1);
     }
     // The running instance picks this out of argv via Electron's second-instance event.
-    launch(['--ofa-notify', JSON.stringify({ title, body: flag('body'), url: flag('url') })]);
+    launch([config.CLI_NOTIFY + JSON.stringify({ title, body: flag('body'), url: flag('url') })]);
   },
 
   async doctor() {
@@ -106,12 +116,19 @@ const commands = {
     const running = isRunning();
     ok(running, running ? 'app is running' : 'app is not running (start it with: ofa)');
 
-    try {
-      require('electron');
-      ok(true, 'electron binary present');
-    } catch {
-      ok(false, 'electron binary missing — run: npm install');
+    if (BUNDLE) {
+      ok(true, `packaged app: ${BUNDLE}`);
+    } else {
+      // the single most common reason nothing ever pops
+      ok(false, 'no packaged app — macOS blocks notifications from a raw electron run (npm run build)');
       fatal++;
+      try {
+        require('electron');
+        ok(true, 'electron binary present (dev mode)');
+      } catch {
+        ok(false, 'electron binary missing — run: npm install');
+        fatal++;
+      }
     }
 
     if (!cfg.services.length) {

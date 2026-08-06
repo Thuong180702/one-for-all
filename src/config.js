@@ -116,6 +116,21 @@ function shouldNotify(service, cfg, { title = '', body = '' } = {}, now = new Da
   return true;
 }
 
+// `open --args` lets Chromium reorder argv and inject its own switches, so the
+// payload can't ride in the next slot — it has to be one token with the flag.
+const CLI_NOTIFY = '--ofa-notify=';
+function parseCliNotify(argv) {
+  const arg = argv.find((a) => a.startsWith(CLI_NOTIFY));
+  if (!arg) return null;
+  try {
+    return JSON.parse(arg.slice(CLI_NOTIFY.length));
+  } catch {
+    return {}; // malformed: still "handled", just nothing to show
+  }
+}
+
 module.exports = {
+  CLI_NOTIFY,
+  parseCliNotify,
   DIR, FILE, load, save, withDefaults, parseUnread, shouldNotify, isDndActive, unreadDelta,
 };

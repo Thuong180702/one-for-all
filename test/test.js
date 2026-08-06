@@ -1,6 +1,7 @@
 const assert = require('assert');
 const {
   parseUnread, shouldNotify, withDefaults, isDndActive, unreadDelta,
+  parseCliNotify, CLI_NOTIFY,
 } = require('../src/config');
 
 // unread parsing — the only thing standing between us and a wrong Dock badge
@@ -94,5 +95,23 @@ assert.strictEqual(require('../src/presets').zalo.notifyOnUnread, true);
 
 // window mode defaults to a normal window
 assert.strictEqual(withDefaults({}).windowMode, 'window');
+
+/* ------------------------------------------------- `ofa notify` argv hand-off */
+// Real argv captured from `open -n -a one-for-all.app --args ...`: macOS and
+// Chromium between them move the payload away from its flag and inject switches.
+// This is why the flag carries its value inline.
+const realArgv = [
+  '/Applications/one-for-all.app/Contents/MacOS/one-for-all',
+  `${CLI_NOTIFY}{"title":"T","body":"B"}`,
+  '--allow-file-access-from-files',
+  '--enable-avfoundation',
+];
+assert.deepStrictEqual(parseCliNotify(realArgv), { title: 'T', body: 'B' });
+
+assert.strictEqual(parseCliNotify(['/bin/app']), null); // a normal launch is not a notify
+assert.deepStrictEqual(parseCliNotify([`${CLI_NOTIFY}not json`]), {}); // handled, shows nothing
+assert.deepStrictEqual(parseCliNotify([`${CLI_NOTIFY}{}`]), {});
+// the CLI and the parser must agree on the token
+assert.ok((CLI_NOTIFY + JSON.stringify({ title: 'x' })).startsWith(CLI_NOTIFY));
 
 console.log('ok');
