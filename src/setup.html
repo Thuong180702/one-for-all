@@ -1,0 +1,143 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  :root {
+    --bg: #f6f6f6; --card: #fff; --fg: #1c1c1e; --fg-dim: #6c6c70;
+    --line: #dcdcdc; --accent: #0b63ce; --ok: #1a7f37; --bad: #cf222e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1e1e21; --card: #2a2a2e; --fg: #ececec; --fg-dim: #9a9aa0;
+      --line: #3a3a3f; --accent: #4c8ee0; --ok: #3fb950; --bad: #f85149;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 34px 28px 40px; background: var(--bg); color: var(--fg);
+    font: 14px/1.5 -apple-system, system-ui, sans-serif; user-select: none;
+  }
+  .wrap { max-width: 620px; margin: 0 auto; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  h2 { margin: 30px 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--fg-dim); }
+  p { margin: 0 0 14px; color: var(--fg-dim); }
+  .step {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px;
+  }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .row p { margin: 0; flex: 1; }
+  button {
+    padding: 7px 14px; border: 1px solid var(--line); border-radius: 7px;
+    background: var(--card); color: var(--fg); font: inherit; cursor: default; white-space: nowrap;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.link { border: 0; background: 0; color: var(--accent); padding: 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .tile {
+    display: flex; align-items: center; gap: 10px; padding: 12px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; cursor: default;
+  }
+  .tile:hover { border-color: var(--accent); }
+  .tile[data-added='true'] { opacity: .55; }
+  .tile .name { flex: 1; font-weight: 500; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; }
+  .status { font-size: 13px; }
+  .status.ok { color: var(--ok); }
+  .status.bad { color: var(--bad); }
+  form { display: flex; gap: 8px; margin-top: 10px; }
+  input {
+    flex: 1; padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px;
+    background: var(--bg); color: var(--fg); font: inherit; user-select: text;
+  }
+  .foot { margin-top: 26px; display: flex; align-items: center; gap: 14px; }
+  .hint { font-size: 12px; color: var(--fg-dim); }
+</style>
+<body>
+  <div class="wrap">
+    <h1>Set up one-for-all</h1>
+    <p>Your web apps run here so macOS can notify you. You log in once, and stay logged in.</p>
+
+    <h2>1 · Notifications</h2>
+    <div class="step">
+      <div class="row">
+        <p>macOS asks for permission the first time. Nothing works without it, so test it now.</p>
+        <button class="primary" id="test">Send a test</button>
+      </div>
+      <p class="status" id="result" hidden></p>
+    </div>
+
+    <h2>2 · Services</h2>
+    <div class="grid" id="grid"></div>
+    <form id="custom">
+      <input id="url" type="url" placeholder="https://… any other web app" />
+      <button>Add</button>
+    </form>
+    <p class="hint" style="margin-top:8px">
+      Adding one opens its login page. Log in once — the session is kept on disk.
+    </p>
+
+    <div class="foot">
+      <button id="done" hidden>Done</button>
+      <span class="hint" id="tally"></span>
+    </div>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  $('test').onclick = () => {
+    $('result').hidden = false;
+    $('result').className = 'status';
+    $('result').textContent = 'Sending…';
+    window.__setup.test();
+  };
+
+  window.__setup.onTestResult(({ ok, err }) => {
+    const el = $('result');
+    el.hidden = false;
+    el.className = 'status ' + (ok ? 'ok' : 'bad');
+    el.textContent = ok
+      ? '✓ Delivered. If you saw no banner, check System Settings › Notifications.'
+      : '✗ Blocked by macOS: ' + err;
+  });
+
+  $('custom').onsubmit = (e) => {
+    e.preventDefault();
+    const url = $('url').value.trim();
+    if (!url) return;
+    window.__setup.add({ url });
+    $('url').value = '';
+  };
+
+  $('done').onclick = () => window.__setup.close();
+
+  window.__setup.onState(({ presets, services, canClose }) => {
+    const added = new Set(services.map((s) => s.id));
+    const grid = $('grid');
+    grid.textContent = '';
+    for (const p of presets) {
+      const isAdded = added.has(p.id);
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.dataset.added = String(isAdded);
+
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = p.name;
+      const act = document.createElement('button');
+      act.className = 'link';
+      act.textContent = isAdded ? 'Remove' : 'Add';
+      act.onclick = () => (isAdded ? window.__setup.remove(p.id) : window.__setup.add({ preset: p.id }));
+
+      tile.append(dot, name, act);
+      grid.append(tile);
+    }
+    $('done').hidden = !canClose;
+    $('tally').textContent = services.length
+      ? `${services.length} service${services.length > 1 ? 's' : ''} connected`
+      : 'Pick one to get started.';
+  });
+</script>
+</body>

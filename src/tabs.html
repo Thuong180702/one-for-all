@@ -26,6 +26,7 @@
   }
   .muted { opacity: 0.45; }
   .empty { padding: 0 14px; align-self: center; color: var(--fg-dim); }
+  #add { font-size: 17px; color: var(--fg-dim); }
 </style>
 <body></body>
 <script>
@@ -34,9 +35,8 @@
     if (!list.length) {
       const p = document.createElement('span');
       p.className = 'empty';
-      p.textContent = 'No services — run: ofa add messenger';
+      p.textContent = 'No services yet';
       document.body.append(p);
-      return;
     }
     for (const s of list) {
       const b = document.createElement('button');
@@ -52,5 +52,11 @@
       b.onclick = () => window.__tabs.select(s.id);
       document.body.append(b);
     }
+    const add = document.createElement('button');
+    add.id = 'add';
+    add.title = 'Add a service';
+    add.append('+');
+    add.onclick = () => window.__tabs.openSetup();
+    document.body.append(add);
   });
 </script>

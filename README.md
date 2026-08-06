@@ -2,9 +2,9 @@
 
 > Native macOS notifications for the web apps that don't have a Mac client.
 
-**Status: pre-alpha.** v0.4 builds a real `.app` from source. It is not published
-to npm or Homebrew yet, so those install commands do not work — build it yourself
-(see [Install](#install)).
+**Status: pre-alpha.** v0.5 builds a real `.app` from source and sets itself up
+from a first-run screen. It is not published to npm or Homebrew yet, so those
+install commands do not work — build it yourself (see [Install](#install)).
 
 [Tiếng Việt →](README.vi.md)
 
@@ -28,6 +28,8 @@ conversation.
 
 ## What it does
 
+- **Set up in one screen.** First launch shows a notification test and a grid of
+  services. Click one, log in, done — the terminal is optional.
 - **Real native notifications.** Not in-app toasts. macOS Notification Center,
   so Focus modes, Do Not Disturb, the lock screen, and Notification Center
   history all work the way you already expect.
@@ -91,7 +93,10 @@ npm install && npm run build
 cp -R dist/one-for-all.app /Applications/
 ```
 
-Then launch it once from Finder and grant the Notifications permission.
+Then launch it from Finder. The setup screen opens on first run: press **Send a
+test** to trigger (and grant) the macOS notification permission, then click a
+service to add it. It opens that service's login page — log in once, and the
+session stays on disk. Reopen the screen any time with the **+** in the tab strip.
 
 > **This step is not optional.** macOS refuses to deliver notifications from a
 > raw `electron .` run — it fails with `UNErrorDomain error 1`, silently, from
@@ -111,6 +116,9 @@ brew install --cask one-for-all # not published yet
 ```
 
 ## Usage
+
+The setup screen covers adding and removing services; the CLI is there for
+scripting and for the options the screen does not expose.
 
 ```bash
 one-for-all                      # launch the app (or focus it if running)

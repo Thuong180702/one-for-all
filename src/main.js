@@ -5,6 +5,7 @@ const {
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
+const presets = require('./presets');
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
@@ -14,7 +15,9 @@ const PIDFILE = path.join(config.DIR, 'ofa.pid');
 let cfg = config.load();
 const views = new Map(); // service.id -> { view, service, unread, lastSeen }
 const history = [];
-let win, tabsView, tray, active, quitting = false;
+let win, tabsView, setupView, tray, active, quitting = false;
+let setupOpen = false;
+let pendingLogin = null; // service added from the UI, to switch to once it exists
 
 // Sites block the Electron UA; pretend to be plain Chrome.
 const USER_AGENT = app.userAgentFallback.replace(/ (one-for-all|Electron)\/[\d.]+/g, '');
@@ -99,7 +102,7 @@ function switchTo(id) {
 // A service is "on screen" only if the window is up and it is the front tab.
 // Everything else must look hidden to the page, or it will never notify.
 function updateVisibility() {
-  const shown = !!win && win.isVisible();
+  const shown = !!win && win.isVisible() && !setupOpen;
   for (const [id, entry] of views) {
     const wc = entry.view.webContents;
     if (!wc.isDestroyed()) wc.send('ofa:visibility', shown && id === active);
@@ -108,10 +111,51 @@ function updateVisibility() {
 
 function layout() {
   const { width, height } = win.getContentBounds();
+  const body = { x: 0, y: TAB_H, width, height: height - TAB_H };
   tabsView.setBounds({ x: 0, y: 0, width, height: TAB_H });
-  for (const { view } of views.values()) {
-    view.setBounds({ x: 0, y: TAB_H, width, height: height - TAB_H });
+  if (setupView) setupView.setBounds(body);
+  for (const { view } of views.values()) view.setBounds(body);
+}
+
+/* --------------------------------------------------------------- setup UI */
+
+function openSetup() {
+  if (!setupView) {
+    setupView = new WebContentsView({
+      webPreferences: {
+        preload: path.join(__dirname, 'tabs-preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+    const wc = setupView.webContents;
+    wc.on('will-navigate', (e) => e.preventDefault()); // chrome stays chrome
+    wc.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
+    wc.on('did-finish-load', renderSetup);
+    wc.loadFile(path.join(__dirname, 'setup.html'));
   }
+  setupOpen = true;
+  win.contentView.addChildView(setupView); // re-adding raises it over the services
+  layout();
+  renderSetup();
+  updateVisibility();
+}
+
+function closeSetup() {
+  if (!setupOpen) return;
+  setupOpen = false;
+  win.contentView.removeChildView(setupView);
+  if (active) switchTo(active); // also re-runs layout and visibility
+  else updateVisibility();
+}
+
+function renderSetup() {
+  if (!setupView) return;
+  setupView.webContents.send('ofa:setup', {
+    presets: Object.entries(presets).map(([id, p]) => ({ id, name: p.name })),
+    services: cfg.services.map((s) => ({ id: s.id, name: s.name })),
+    canClose: views.size > 0,
+  });
 }
 
 const reloadAll = () => views.forEach((entry) => {
@@ -159,6 +203,15 @@ function applyConfig(next) {
   }
   buildAppMenu();
   updateBadge();
+  renderSetup();
+  // A service added from the setup screen only exists after this reload; take the
+  // user straight to its login page, which is the whole point of adding it.
+  if (pendingLogin && views.has(pendingLogin)) {
+    const id = pendingLogin;
+    pendingLogin = null;
+    closeSetup();
+    switchTo(id);
+  }
 }
 
 function watchConfig() {
@@ -197,7 +250,7 @@ const findEntry = (senderId) => [...views.values()].find((v) => v.view.webConten
 // Preload reruns on every navigation, so it asks rather than us guessing when to tell it.
 ipcMain.on('ofa:hello', (e) => {
   const entry = findEntry(e.sender.id);
-  if (entry) e.sender.send('ofa:visibility', win.isVisible() && entry.service.id === active);
+  if (entry) e.sender.send('ofa:visibility', win.isVisible() && !setupOpen && entry.service.id === active);
 });
 
 ipcMain.on('ofa:notify', (e, payload) => {
@@ -250,6 +303,46 @@ ipcMain.on('ofa:title', (e, title) => {
 });
 
 ipcMain.on('ofa:select', (_e, id) => switchTo(id));
+ipcMain.on('ofa:setup-open', openSetup);
+ipcMain.on('ofa:setup-close', closeSetup);
+
+ipcMain.on('ofa:add', (_e, what) => {
+  const preset = presets[what.preset];
+  let service;
+  if (preset) {
+    service = { id: what.preset, ...preset };
+  } else {
+    let url;
+    try {
+      url = new URL(what.url);
+    } catch {
+      return; // the input is type=url, but never trust the renderer
+    }
+    if (!/^https?:$/.test(url.protocol)) return;
+    service = { id: url.hostname.toLowerCase().replace(/\W+/g, '-'), name: url.hostname, url: url.href };
+  }
+  const next = config.load();
+  if (next.services.some((s) => s.id === service.id)) return;
+  next.services.push(service);
+  pendingLogin = service.id;
+  config.save(config.withDefaults(next)); // fs.watch turns this into applyConfig
+});
+
+ipcMain.on('ofa:remove', (_e, id) => {
+  const next = config.load();
+  next.services = next.services.filter((s) => s.id !== id);
+  config.save(next);
+});
+
+// Deliberately bypasses notify(): this tests whether macOS will deliver at all,
+// so DND and the per-service filters must not be able to swallow it.
+ipcMain.on('ofa:test-notification', (e) => {
+  const n = new Notification({ title: 'one-for-all', body: 'Notifications are working.' });
+  const reply = (r) => !e.sender.isDestroyed() && e.sender.send('ofa:test-result', r);
+  n.on('show', () => reply({ ok: true }));
+  n.on('failed', (_ev, err) => reply({ ok: false, err: String(err) }));
+  n.show();
+});
 
 // `ofa notify ...` relaunches the app; the running instance picks the payload out of argv.
 function handleCliNotify(argv) {
@@ -425,6 +518,7 @@ app.whenReady().then(() => {
   });
 
   cfg.services.filter((s) => s.enabled).forEach(addService);
+  if (!views.size) openSetup(); // first run, or everything removed
   buildAppMenu();
   updateBadge();
   layout();
