@@ -2,7 +2,7 @@
 
 > Native macOS notifications for the web apps that don't have a Mac client.
 
-**Status: pre-alpha.** v0.2 runs from source (`npm install && npm start`). It is
+**Status: pre-alpha.** v0.3 runs from source (`npm install && npm start`). It is
 not published to npm or Homebrew yet, so the install commands below do not work.
 
 [Tiếng Việt →](README.vi.md)
@@ -37,8 +37,10 @@ conversation.
   watchdog that reloads a service after sleep/wake or a dropped socket. This is
   the whole reason the project exists.
 - **One login per service, kept separate.** Each service gets its own isolated
-  Electron session partition, so cookies never mix and you can run two accounts
-  of the same service side by side.
+  Electron session partition, so cookies never mix. `ofa add messenger --as work`
+  gives you a second account of the same service, logged in independently.
+- **Lives in the menu bar if you want.** Set `"windowMode": "menubar"` and it
+  drops the Dock icon and becomes a panel that opens under the tray icon.
 - **Unread counts in the tab strip, menu bar, and Dock.** Aggregated across
   services.
 - **Quiet hours that are actually quiet.** Per-service mute, keyword allow/deny
@@ -62,7 +64,7 @@ below just ship as presets so you can type `ofa add gmail`.
 | Discord (web) | yes | yes | channel |
 | Telegram Web | yes | yes | chat |
 | WhatsApp Web | yes | yes | chat |
-| Zalo Web | **no** | yes | — |
+| Zalo Web | via unread count | yes | opens Zalo |
 | Generic (any URL) | if the site uses the API | if it puts `(N)` in the title | wherever its own handler goes |
 
 Deep links are not hardcoded: clicking a native notification replays the page's
@@ -70,11 +72,15 @@ own `onclick`, which is what already knows how to open the right thread. So a
 site works the moment it uses the standard API, and keeps working when it
 redeploys.
 
-> **Zalo Web does not use the Notification API**, so it currently gets an unread
-> badge but no popups. Making it work needs a DOM watcher for its conversation
-> list, which is not built yet. Everything else in the table is verified only in
-> the sense that those sites use the standard API — real-account testing is
-> still wanted.
+> **Zalo Web never calls the Notification API.** For sites like it, set
+> `"notifyOnUnread": true` (the `zalo` preset already does) and a *rise* in the
+> tab-title unread count becomes the notification: "Zalo — 3 new messages". You
+> get no sender name or preview, because the page never offers one — but there
+> are no DOM selectors to rot when Zalo redeploys. The flag is ignored once a
+> service is seen using the real API, so it can't double up on Messenger.
+>
+> Everything else in the table is verified only in the sense that those sites use
+> the standard API — real-account testing is still wanted.
 
 ## Install
 
@@ -100,6 +106,7 @@ Notifications permission — grant it, or nothing works.
 ```bash
 one-for-all                      # launch the app (or focus it if running)
 one-for-all add messenger        # add a preconfigured service
+one-for-all add messenger --as work   # second account, its own login
 one-for-all add --url https://mail.proton.me --name "Proton Mail"
 one-for-all list                 # list configured services
 one-for-all remove slack
@@ -140,16 +147,17 @@ notification opens `--url` in your browser.
       "id": "messenger",
       "name": "Messenger",
       "url": "https://www.messenger.com/",
-      "partition": "persist:messenger",   // change this for a 2nd account
+      "partition": "persist:messenger",   // set by --as; change for a 2nd account
       "enabled": true,
       "muted": false,
-      "sound": "default",                 // macOS sound name, or null for silent
+      "sound": "default",                 // "Ping" / "Glass" / ...; null = silent
       "badge": true,                      // count toward Dock badge
       "notify": {
         "allow": [],                      // regex; empty = allow all
         "deny": ["^.*reacted to your message$"],
         "priority": ["Mom", "@here"]      // these bypass DND
       },
+      "notifyOnUnread": false,            // for sites that never call the API
       "reloadIfIdleMinutes": 0,           // 0 = off; see the caveat below
       "userAgent": null                   // override if the site blocks Electron
     }

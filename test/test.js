@@ -1,5 +1,7 @@
 const assert = require('assert');
-const { parseUnread, shouldNotify, withDefaults, isDndActive } = require('../src/config');
+const {
+  parseUnread, shouldNotify, withDefaults, isDndActive, unreadDelta,
+} = require('../src/config');
 
 // unread parsing — the only thing standing between us and a wrong Dock badge
 assert.strictEqual(parseUnread('(3) Messenger'), 3);
@@ -67,5 +69,30 @@ assert.strictEqual(isDndActive({ dndSchedule: [{}] }, at(2)), false);
 assert.ok(!shouldNotify(svc, night, { title: 'Bob' }, at(23)));
 assert.ok(shouldNotify(svc, night, { title: 'Bob' }, at(12)));
 assert.ok(shouldNotify(prio, night, { title: 'Mom' }, at(23))); // priority beats the schedule
+
+/* -------------------------------------------- unread fallback (Zalo & co.) */
+const settled = { enabled: true, sawApiNotification: false, msSinceLoad: 60000 };
+
+assert.strictEqual(unreadDelta(settled, 0, 1), '1 new message');
+assert.strictEqual(unreadDelta(settled, 1, 4), '3 new messages'); // plural, and it's a delta
+assert.strictEqual(unreadDelta(settled, 4, 4), null); // unchanged
+assert.strictEqual(unreadDelta(settled, 4, 1), null); // reading messages is not news
+assert.strictEqual(unreadDelta(settled, 4, 0), null);
+
+// off by default, so enabling it on Messenger can't spam
+assert.strictEqual(unreadDelta({ ...settled, enabled: false }, 0, 3), null);
+// a site that already fired a real Notification must never get a second one
+assert.strictEqual(unreadDelta({ ...settled, sawApiNotification: true }, 0, 3), null);
+// a reload re-counts from zero; don't replay the backlog as popups
+assert.strictEqual(unreadDelta({ ...settled, msSinceLoad: 500 }, 0, 12), null);
+assert.strictEqual(unreadDelta({ ...settled, msSinceLoad: 9999 }, 0, 12), null);
+assert.strictEqual(unreadDelta({ ...settled, msSinceLoad: 10001 }, 0, 12), '12 new messages');
+
+// the fallback is opt-in per service, and the zalo preset opts in
+assert.strictEqual(svc.notifyOnUnread, false);
+assert.strictEqual(require('../src/presets').zalo.notifyOnUnread, true);
+
+// window mode defaults to a normal window
+assert.strictEqual(withDefaults({}).windowMode, 'window');
 
 console.log('ok');

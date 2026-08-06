@@ -1,5 +1,5 @@
 const {
-  app, BaseWindow, WebContentsView, Notification, session, Tray, Menu,
+  app, BaseWindow, WebContentsView, Notification, session, Tray, Menu, screen,
   globalShortcut, powerSaveBlocker, powerMonitor, ipcMain, nativeImage, shell,
 } = require('electron');
 const fs = require('fs');
@@ -37,9 +37,14 @@ function addService(service) {
       backgroundThrottling: false,
     },
   });
-  const entry = { view, service, unread: 0, lastSeen: Date.now() };
+  const entry = {
+    view, service, unread: 0, lastSeen: Date.now(), loadedAt: Date.now(), sawApiNotification: false,
+  };
   const wc = view.webContents;
   wc.setBackgroundThrottling(false);
+  // Every load restarts the unread count from zero; the settle window keeps a
+  // reload (or a wake-from-sleep) from replaying the whole backlog as popups.
+  wc.on('did-finish-load', () => { entry.loadedAt = Date.now(); });
 
   // ponytail: liveness = completed HTTP requests. Frames on an already-upgraded
   // WebSocket are invisible here, which is why reloadIfIdleMinutes defaults to off.
@@ -101,7 +106,22 @@ const reloadAll = () => views.forEach((entry) => {
   entry.view.webContents.reload();
 });
 
+const isMenubar = () => cfg.windowMode === 'menubar';
+
+// Park the panel under the tray icon, clamped to the display it lives on.
+function positionUnderTray() {
+  const t = tray.getBounds();
+  const { width, height } = win.getBounds();
+  const area = screen.getDisplayNearestPoint({ x: t.x, y: t.y }).workArea;
+  const x = Math.round(t.x + t.width / 2 - width / 2);
+  win.setPosition(
+    Math.max(area.x, Math.min(x, area.x + area.width - width)),
+    Math.round(Math.min(t.y + t.height, area.y + area.height - height)),
+  );
+}
+
 function show() {
+  if (isMenubar()) positionUnderTray();
   win.show();
   app.focus({ steal: true });
 }
@@ -149,6 +169,8 @@ function notify({ title, body, sound, serviceId, onClick }) {
     subtitle: views.get(serviceId)?.service.name || '',
     body: body || '',
     silent: sound === null,
+    // macOS takes a sound *name* here ("Ping", "Glass"); "default" means leave it alone.
+    ...(sound && sound !== 'default' ? { sound } : {}),
   });
   n.on('click', onClick);
   n.show();
@@ -160,6 +182,7 @@ ipcMain.on('ofa:notify', (e, payload) => {
   const entry = findEntry(e.sender.id);
   if (!entry) return;
   entry.lastSeen = Date.now();
+  entry.sawApiNotification = true; // stops the unread fallback from doubling up
   if (!config.shouldNotify(entry.service, cfg, payload)) return;
   notify({
     title: payload.title || entry.service.name,
@@ -181,8 +204,27 @@ ipcMain.on('ofa:title', (e, title) => {
   entry.lastSeen = Date.now();
   const unread = config.parseUnread(title);
   if (unread === entry.unread) return;
+  const prev = entry.unread;
   entry.unread = unread;
   updateBadge();
+
+  const body = config.unreadDelta({
+    enabled: entry.service.notifyOnUnread,
+    sawApiNotification: entry.sawApiNotification,
+    msSinceLoad: Date.now() - entry.loadedAt,
+  }, prev, unread);
+  if (!body) return;
+  const payload = { title: entry.service.name, body };
+  if (!config.shouldNotify(entry.service, cfg, payload)) return;
+  notify({
+    ...payload,
+    sound: entry.service.sound,
+    serviceId: entry.service.id,
+    onClick: () => {
+      show();
+      switchTo(entry.service.id);
+    },
+  });
 });
 
 ipcMain.on('ofa:select', (_e, id) => switchTo(id));
@@ -314,7 +356,15 @@ function buildAppMenu() {
 /* ---------------------------------------------------------------- lifecycle */
 
 app.whenReady().then(() => {
-  win = new BaseWindow({ width: 1100, height: 780, show: false, title: 'one-for-all' });
+  const menubar = isMenubar();
+  win = new BaseWindow({
+    width: menubar ? 420 : 1100,
+    height: menubar ? 620 : 780,
+    show: false,
+    title: 'one-for-all',
+    frame: !menubar,
+    alwaysOnTop: menubar,
+  });
   win.on('resize', layout);
   win.on('close', (e) => {
     // Closing must not quit — the whole point is staying connected in the background.
@@ -322,6 +372,14 @@ app.whenReady().then(() => {
     e.preventDefault();
     win.hide();
   });
+  if (menubar) {
+    app.dock.hide(); // menu bar only: no Dock icon, no app switcher entry
+    win.on('blur', () => {
+      // BaseWindow has no webContents of its own; ask the service views instead,
+      // otherwise opening devtools blurs the panel and hides it out from under you.
+      if (![...views.values()].some((v) => v.view.webContents.isDevToolsOpened())) win.hide();
+    });
+  }
 
   tabsView = new WebContentsView({
     webPreferences: {
@@ -339,7 +397,14 @@ app.whenReady().then(() => {
 
   tray = new Tray(nativeImage.createEmpty());
   tray.setToolTip('one-for-all');
-  tray.on('click', show);
+  // In menubar mode the blur handler has already hidden the panel by the time this
+  // fires, so treat a click just after a hide as "close", not "open again".
+  let hiddenAt = 0;
+  win.on('hide', () => { hiddenAt = Date.now(); });
+  tray.on('click', () => {
+    if (win.isVisible() || Date.now() - hiddenAt < 250) win.hide();
+    else show();
+  });
 
   cfg.services.filter((s) => s.enabled).forEach(addService);
   buildAppMenu();

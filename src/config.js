@@ -8,6 +8,7 @@ const FILE = path.join(DIR, 'config.json');
 
 const DEFAULTS = {
   startAtLogin: true,
+  windowMode: 'window', // "window" | "menubar"
   globalShortcut: 'Cmd+Shift+Space',
   dnd: false, // manual override, toggled from the menu bar
   dndSchedule: [], // [{ from: "22:00", to: "08:00", days: [1,2,3,4,5] }]
@@ -21,8 +22,22 @@ const SERVICE_DEFAULTS = {
   badge: true,
   sound: 'default',
   reloadIfIdleMinutes: 0, // 0 = never
+  notifyOnUnread: false, // for sites that never call the Notification API
   notify: { allow: [], deny: [], priority: [] },
 };
+
+// Sites that ignore the Notification API (Zalo) only ever tell us one thing: the
+// unread count in their tab title. Turning a rise in that number into a notification
+// is the whole fallback — no DOM selectors to rot when the site redeploys.
+const SETTLE_MS = 10000;
+
+function unreadDelta({ enabled, sawApiNotification, msSinceLoad }, prev, next) {
+  if (!enabled || sawApiNotification) return null; // never double up on a real API call
+  if (msSinceLoad < SETTLE_MS) return null; // a reload re-counts from 0; don't replay it
+  if (!(next > prev)) return null;
+  const d = next - prev;
+  return `${d} new message${d > 1 ? 's' : ''}`;
+}
 
 function withDefaults(raw) {
   const cfg = { ...DEFAULTS, ...raw };
@@ -101,4 +116,6 @@ function shouldNotify(service, cfg, { title = '', body = '' } = {}, now = new Da
   return true;
 }
 
-module.exports = { DIR, FILE, load, save, withDefaults, parseUnread, shouldNotify, isDndActive };
+module.exports = {
+  DIR, FILE, load, save, withDefaults, parseUnread, shouldNotify, isDndActive, unreadDelta,
+};

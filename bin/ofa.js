@@ -38,6 +38,15 @@ const commands = {
       ? { id: args[0], ...preset }
       : { id: (flag('name') || new URL(url).hostname).toLowerCase().replace(/\W+/g, '-'), name: flag('name') || new URL(url).hostname, url };
 
+    // `--as work` is the whole multi-account story: a distinct id gets a distinct
+    // session partition, so the second copy logs in independently.
+    const label = flag('as');
+    if (label) {
+      const slug = label.toLowerCase().replace(/\W+/g, '-');
+      service.id = `${service.id}-${slug}`;
+      service.name = `${service.name} (${label})`;
+    }
+
     const cfg = config.load();
     if (cfg.services.some((s) => s.id === service.id)) {
       console.error(`${service.id} is already configured.`);
@@ -45,14 +54,15 @@ const commands = {
     }
     cfg.services.push(service);
     config.save(config.withDefaults(cfg));
-    console.log(`Added ${service.name} (${service.id}). Restart one-for-all to load it.`);
+    console.log(`Added ${service.name} (${service.id}).${isRunning() ? '' : ' Start the app with: ofa'}`);
   },
 
   list() {
     const cfg = config.load();
     if (!cfg.services.length) return console.log('No services configured. Try: ofa add messenger');
+    const w = (key) => Math.max(...cfg.services.map((s) => s[key].length));
     for (const s of cfg.services) {
-      console.log(`${s.enabled ? ' ' : '-'} ${s.id.padEnd(12)} ${s.name.padEnd(16)} ${s.url}${s.muted ? '  [muted]' : ''}`);
+      console.log(`${s.enabled ? ' ' : '-'} ${s.id.padEnd(w('id'))}  ${s.name.padEnd(w('name'))}  ${s.url}${s.muted ? '  [muted]' : ''}`);
     }
   },
 
@@ -148,6 +158,7 @@ const commands = {
 
   ofa                          launch (or focus) the app
   ofa add <preset|--url URL>   add a service   [${Object.keys(presets).join(' ')}]
+  ofa add <preset> --as work   add a second account, with its own login
   ofa list                     list configured services
   ofa remove <id>              remove a service
   ofa config                   edit ${config.FILE}
