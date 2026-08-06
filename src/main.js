@@ -7,16 +7,24 @@ const path = require('path');
 const config = require('./config');
 const presets = require('./presets');
 const { trayPng } = require('./icon');
+const { DATA_URIS } = require('./icons');
 
-if (!app.requestSingleInstanceLock()) app.quit();
+// app.quit() is async — without the early return, this whole module keeps
+// running (and re-registering its own will-quit handler) in the losing instance.
+if (!app.requestSingleInstanceLock()) { app.quit(); return; }
 
 // Chromium sizes its disk cache off free space and will happily sit on hundreds of
 // megabytes per session. A chat client re-fetches its bundles anyway; 64 MB is plenty.
 app.commandLine.appendSwitch('disk-cache-size', String(64 * 1024 * 1024));
 
 const TAB_H = 34;
+const DEV = process.argv.includes('--dev');
 const LOG_FILE = path.join(config.DIR, 'ofa-debug.log');
+// Notification title/body pass through here — real message content. Only ever
+// written to disk in --dev; on disk otherwise would contradict the README's
+// "notification history... nothing is written to disk" privacy claim.
 function dbg(...args) {
+  if (!DEV) return;
   const line = `[${new Date().toISOString()}] ${args.join(' ')}\n`;
   try { fs.appendFileSync(LOG_FILE, line); } catch {}
   console.log('[ofa-debug]', ...args);
@@ -79,15 +87,25 @@ function addService(service) {
   });
   wc.on('did-fail-load', (_e, code, desc, _url, isMainFrame) => {
     if (!isMainFrame || code === -3) return; // -3 = aborted, normal during SPA nav
-    console.error(`[${service.id}] load failed (${desc}); retrying in 5s`);
-    setTimeout(() => !wc.isDestroyed() && wc.loadURL(service.url), 5000);
+    console.error(`[${entry.service.id}] load failed (${desc}); retrying in 5s`);
+    setTimeout(() => !wc.isDestroyed() && wc.loadURL(entry.service.url), 5000);
+  });
+
+  // Auto-detect & save page favicon for services. Reads entry.service (not the
+  // `service` param) because applyConfig() swaps that object out on every
+  // config reload — writing to the stale one would save an orphaned favicon.
+  wc.on('page-favicon-updated', (_e, favicons) => {
+    if (favicons && favicons.length > 0 && favicons[0] !== entry.service.icon) {
+      entry.service.icon = favicons[0];
+      config.save(cfg);
+      renderTabs();
+      renderSetup();
+    }
   });
 
   wc.loadURL(service.url);
   views.set(service.id, entry);
-  win.contentView.addChildView(view);
-  if (!active) switchTo(service.id);
-  else layout();
+  layout();
 }
 
 function removeService(id) {
@@ -125,8 +143,15 @@ function switchTo(id) {
     updateBadge();
   }
 
+  // The previously active view stays in the window's view tree (re-adding on the
+  // next switch is what raises it back to front) but must be marked not-visible,
+  // or Chromium keeps compositing it and background throttling never kicks in.
+  const prevEntry = active ? views.get(active) : null;
+  if (prevEntry && prevEntry !== entry) prevEntry.view.setVisible(false);
+
   active = id;
   win.contentView.addChildView(entry.view); // re-adding raises it to the front
+  entry.view.setVisible(true);
   win.setTitle(entry.service.name);
   layout();
   entry.view.webContents.focus();
@@ -138,11 +163,12 @@ function switchTo(id) {
 // using this app), and it is the front tab. Using isFocused() is critical: when
 // the user switches to another app, all services see visible=false and will use
 // their own Notification API — giving us full sender name + message content.
+const isFrontmost = (id) => !!win && win.isVisible() && win.isFocused() && !setupOpen && id === active;
+
 function updateVisibility() {
-  const shown = !!win && win.isVisible() && win.isFocused() && !setupOpen;
   for (const [id, entry] of views) {
     const wc = entry.view.webContents;
-    if (!wc.isDestroyed()) wc.send('ofa:visibility', shown && id === active);
+    if (!wc.isDestroyed()) wc.send('ofa:visibility', isFrontmost(id));
   }
 }
 
@@ -164,6 +190,7 @@ function openSetup(page = 'services') {
         preload: path.join(__dirname, 'tabs-preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
+        sandbox: true,
       },
     });
     const wc = setupView.webContents;
@@ -195,16 +222,17 @@ function renderSetup() {
   if (!setupView) return;
   setupView.webContents.send('ofa:setup', {
     page: setupPage,
-    presets: Object.entries(presets).map(([id, p]) => ({ id, name: p.name })),
-    services: cfg.services.map((s) => ({ id: s.id, name: s.name })),
+    presets: Object.entries(presets).map(([id, p]) => ({ id, name: p.name, icon: p.icon || DATA_URIS.generic })),
+    services: cfg.services.map((s) => ({ id: s.id, name: s.name, icon: s.icon || presets[s.id]?.icon || DATA_URIS.generic })),
     canClose: views.size > 0,
     notificationsOk: !!cfg.notificationsOk,
     appMode: cfg.appMode || 'normal',
     ramOptimization: cfg.ramOptimization !== false,
-    idleSleepMinutes: cfg.idleSleepMinutes || 30,
+    idleSleepMinutes: cfg.idleSleepMinutes || 0,
     history: history.slice(0, 50),
     // an unpackaged run has no login item to read, so fall back to what config says
     openAtLogin: app.isPackaged ? app.getLoginItemSettings().openAtLogin : !!cfg.startAtLogin,
+    genericIcon: DATA_URIS.generic,
   });
 }
 
@@ -237,33 +265,16 @@ function show(forceService = false) {
   }
 }
 
-// ── RAM Optimization: Idle Sleep Watchdog ────────────────────────────
-// Periodically checks for inactive services that have been idle for > idleSleepMinutes.
-// Temporarily unloads their webview URL to free up 100% of their RAM.
-setInterval(() => {
-  const mins = cfg.idleSleepMinutes;
-  if (!mins || mins <= 0) return;
-  const timeoutMs = mins * 60 * 1000;
-  const now = Date.now();
-
-  for (const [id, entry] of views) {
-    if (id === active || entry.isSleeping || entry.unread > 0) continue;
-    if (now - entry.lastSeen > timeoutMs) {
-      dbg(`RAM Optimization: sleeping idle service=${id} (idle for ${mins}m)`);
-      entry.isSleeping = true;
-      entry.view.webContents.loadURL('about:blank'); // release heavy DOM memory
-    }
-  }
-}, 60000);
-
 /* ------------------------------------------------------------ config reload */
 
 function applyConfig(next) {
+  const ramOptChanged = cfg.ramOptimization !== next.ramOptimization;
   cfg = next;
   const wanted = next.services.filter((s) => s.enabled);
   for (const id of [...views.keys()]) {
     if (!wanted.some((s) => s.id === id)) removeService(id);
   }
+  const ramOpt = next.ramOptimization !== false;
   for (const s of wanted) {
     const entry = views.get(s.id);
     if (!entry) {
@@ -272,6 +283,7 @@ function applyConfig(next) {
       const changed = s.url !== entry.service.url || s.partition !== entry.service.partition;
       entry.service = s;
       if (changed) entry.view.webContents.loadURL(s.url);
+      if (ramOptChanged) entry.view.webContents.setBackgroundThrottling(ramOpt);
     }
   }
   buildAppMenu();
@@ -312,7 +324,15 @@ function retain(n) {
 function notify({ title, body, sound, serviceId, onClick }) {
   dbg(`notify() called title="${title}" body="${body}" serviceId=${serviceId}`);
   if (cfg.history) {
-    history.unshift({ at: Date.now(), serviceId, title, body });
+    const entrySvc = views.get(serviceId)?.service;
+    history.unshift({
+      at: Date.now(),
+      serviceId,
+      serviceName: entrySvc?.name || 'Notification',
+      serviceIcon: entrySvc?.icon || presets[serviceId]?.icon || DATA_URIS.generic,
+      title,
+      body,
+    });
     history.length = Math.min(history.length, 200);
   }
   const n = retain(new Notification({
@@ -336,7 +356,7 @@ const findEntry = (senderId) => [...views.values()].find((v) => v.view.webConten
 // Preload reruns on every navigation, so it asks rather than us guessing when to tell it.
 ipcMain.on('ofa:hello', (e) => {
   const entry = findEntry(e.sender.id);
-  if (entry) e.sender.send('ofa:visibility', win.isVisible() && win.isFocused() && !setupOpen && entry.service.id === active);
+  if (entry) e.sender.send('ofa:visibility', isFrontmost(entry.service.id));
 });
 
 ipcMain.on('ofa:notify', (e, payload) => {
@@ -396,10 +416,14 @@ ipcMain.on('ofa:title', (e, title) => {
   entry.pendingNotify.timer = setTimeout(() => {
     const base = entry.pendingNotify.base;
     entry.pendingNotify = null;
-    const d = entry.unread - base;
-    dbg(`pendingNotify fired service=${entry.service.id} d=${d} base=${base} current=${entry.unread}`);
-    if (d <= 0 || Date.now() - entry.loadedAt < 10000) return; // settle window
-    const body = `${d} new message${d > 1 ? 's' : ''}`;
+    // config.unreadDelta is the same settle-window + delta logic test/test.js checks
+    // directly; reusing it here keeps the settle threshold and message wording in one place.
+    const body = config.unreadDelta(
+      { enabled: true, sawApiNotification: entry.sawApiNotification, msSinceLoad: Date.now() - entry.loadedAt },
+      base, entry.unread,
+    );
+    dbg(`pendingNotify fired service=${entry.service.id} base=${base} current=${entry.unread} body=${body}`);
+    if (!body) return;
     const payload = { title: entry.service.name, body };
     if (!config.shouldNotify(entry.service, cfg, payload)) return;
     notify({
@@ -426,9 +450,7 @@ ipcMain.on('ofa:set-idle-sleep', (_e, mins) => patchConfig({ idleSleepMinutes: N
 // fs.watch turns every one of these into applyConfig, which re-renders the UI.
 const patchConfig = (patch) => config.save({ ...config.load(), ...patch });
 
-ipcMain.on('ofa:setup-open', () => openSetup('services'));
-ipcMain.on('ofa:settings-open', () => openSetup('settings'));
-ipcMain.on('ofa:history-open', () => openSetup('history'));
+ipcMain.on('ofa:open-page', (_e, page) => openSetup(page));
 ipcMain.on('ofa:setup-page', (_e, page) => { setupPage = page; renderSetup(); renderTabs(); });
 
 // Skip and Continue do the same thing: the welcome screen is never shown again,
@@ -506,14 +528,27 @@ function handleCliNotify(argv) {
 
 /* --------------------------------------------------------------- watchdog */
 
-function checkIdle() {
-  for (const entry of views.values()) {
+// One tick, two independent idle policies: reload a service that's gone quiet
+// (opt-in per service) and sleep one RAM optimization has decided to unload
+// (opt-in globally). They share a timer since both only need minute resolution.
+function watchdogTick() {
+  const now = Date.now();
+  const sleepMins = cfg.idleSleepMinutes;
+  const sleepTimeoutMs = sleepMins > 0 ? sleepMins * 60000 : 0;
+
+  for (const [id, entry] of views) {
     const limit = entry.service.reloadIfIdleMinutes;
-    if (!limit) continue;
-    if (Date.now() - entry.lastSeen > limit * 60000) {
+    if (limit && now - entry.lastSeen > limit * 60000) {
       console.log(`[${entry.service.id}] idle ${limit}m; reloading`);
-      entry.lastSeen = Date.now();
+      entry.lastSeen = now;
       entry.view.webContents.reload();
+      continue;
+    }
+    if (sleepTimeoutMs && id !== active && !entry.isSleeping && !entry.unread
+      && now - entry.lastSeen > sleepTimeoutMs) {
+      dbg(`RAM Optimization: sleeping idle service=${id} (idle for ${sleepMins}m)`);
+      entry.isSleeping = true;
+      entry.view.webContents.loadURL('about:blank'); // release heavy DOM memory
     }
   }
 }
@@ -525,6 +560,7 @@ function renderTabs() {
   const list = [...views.values()].map(({ service, unread }) => ({
     id: service.id,
     name: service.name,
+    icon: service.icon || presets[service.id]?.icon || DATA_URIS.generic,
     unread,
     muted: service.muted,
     active: service.id === active,
@@ -537,6 +573,7 @@ function renderTabs() {
     setupPage: setupPage || 'services',
     activeId: active,
     activeService: activeEntry?.service?.name || '',
+    genericIcon: DATA_URIS.generic,
   });
 }
 
@@ -678,9 +715,19 @@ app.whenReady().then(() => {
     else show();
   });
 
-  cfg.services.filter((s) => s.enabled).forEach(addService);
-  if (!cfg.onboarded) openSetup('welcome');
-  else if (!views.size) openSetup('services'); // everything removed
+  const enabledServices = cfg.services.filter((s) => s.enabled);
+  enabledServices.forEach(addService);
+
+  if (!cfg.onboarded) {
+    openSetup('welcome');
+  } else if (cfg.appMode === 'minimal') {
+    openSetup('history');
+  } else if (!views.size) {
+    openSetup('services');
+  } else {
+    const firstId = enabledServices[0]?.id || views.keys().next().value;
+    if (firstId) switchTo(firstId);
+  }
   buildAppMenu();
   updateBadge();
   layout();
@@ -689,7 +736,7 @@ app.whenReady().then(() => {
   // Keeping the sockets alive is the entire reason this app exists.
   powerSaveBlocker.start('prevent-app-suspension');
   powerMonitor.on('resume', reloadAll);
-  setInterval(checkIdle, 60000);
+  setInterval(watchdogTick, 60000);
   watchConfig();
 
   fs.writeFileSync(PIDFILE, String(process.pid));

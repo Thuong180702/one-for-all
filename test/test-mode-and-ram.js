@@ -37,19 +37,19 @@ test('allows setting appMode to minimal', () => {
   assert.strictEqual(cfg.appMode, 'minimal');
 });
 
-test('defaults ramOptimization to true', () => {
+test('defaults ramOptimization to false (background throttling would pause the socket)', () => {
   const cfg = withDefaults({});
-  assert.strictEqual(cfg.ramOptimization, true);
-});
-
-test('allows disabling ramOptimization', () => {
-  const cfg = withDefaults({ ramOptimization: false });
   assert.strictEqual(cfg.ramOptimization, false);
 });
 
-test('defaults idleSleepMinutes to 30', () => {
+test('allows enabling ramOptimization', () => {
+  const cfg = withDefaults({ ramOptimization: true });
+  assert.strictEqual(cfg.ramOptimization, true);
+});
+
+test('defaults idleSleepMinutes to 0 (off)', () => {
   const cfg = withDefaults({});
-  assert.strictEqual(cfg.idleSleepMinutes, 30);
+  assert.strictEqual(cfg.idleSleepMinutes, 0);
 });
 
 test('allows customizing idleSleepMinutes', () => {

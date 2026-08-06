@@ -163,6 +163,7 @@ notification opens `--url` in your browser.
 {
   "startAtLogin": true,
   "windowMode": "window",        // "window" | "menubar"
+  "appMode": "normal",           // "normal" (full UI) | "minimal" (notifications only)
   "globalShortcut": "Cmd+Shift+Space",
   "dnd": false,                  // manual override, toggled from the menu bar
   "dndSchedule": [              // quiet hours; windows may wrap past midnight
@@ -171,6 +172,10 @@ notification opens `--url` in your browser.
   "history": true,               // false = keep no record of past notifications
   "onboarded": true,             // false = show the welcome screen again on next launch
   "notificationsOk": true,       // set once macOS has accepted a notification
+  "ramOptimization": false,      // true = throttle hidden tabs; trades socket
+                                  // liveness for RAM, see Footprint below
+  "idleSleepMinutes": 0,         // 0 = off; unload a tab's page after N idle
+                                  // minutes with no unread messages
   "services": [
     {
       "id": "messenger",
@@ -206,6 +211,14 @@ notification, no tab-title change, and no completed HTTP request — but frames 
 an already-upgraded WebSocket are invisible to it, so a perfectly healthy
 Messenger can look idle. That is why it defaults to off. Turn it on for services
 you have actually seen go stale.
+
+`ramOptimization` and `idleSleepMinutes` both default to off, because both trade
+away the thing this app exists for — a connection that survives being hidden —
+for lower memory use. `ramOptimization` lets Chromium throttle background tabs
+the way a browser normally would. `idleSleepMinutes` unloads a background tab's
+page entirely (to `about:blank`) after N idle minutes with no unread messages;
+switching back to that tab reloads it. Turn either on only for services where a
+brief reconnect delay is an acceptable trade for the RAM back.
 
 ## How it works
 
@@ -246,9 +259,10 @@ Three things carry most of the weight:
 2. **`session.setPermissionRequestHandler` auto-grants** `notifications` to
    configured services, so you never see the site's own permission prompt and
    the site never falls back to "notifications blocked" mode.
-3. **`webContents.setBackgroundThrottling(false)` + `powerSaveBlocker`** keep
-   the WebSocket alive when the window is hidden or the Mac is idle. A browser
-   tab cannot do this; that is the entire gap this app fills.
+3. **`webContents.setBackgroundThrottling(false)` (the `ramOptimization`
+   default) + `powerSaveBlocker`** keep the WebSocket alive when the window is
+   hidden or the Mac is idle. A browser tab cannot do this; that is the entire
+   gap this app fills.
 4. **It ships as a signed `.app` bundle.** macOS grants notification permission
    per bundle identifier, so an unpackaged run has no identity to grant it to
    and every notification fails. `scripts/build-app.js` gives it one.

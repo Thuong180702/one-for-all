@@ -1,95 +1,296 @@
 <!doctype html>
+<html lang="en">
+<head>
 <meta charset="utf-8" />
 <style>
   :root {
-    --bg: #f6f6f6; --card: #fff; --fg: #1c1c1e; --fg-dim: #6c6c70;
-    --line: #dcdcdc; --accent: #0b63ce; --ok: #1a7f37; --bad: #cf222e;
+    --bg: #f4f4f7;
+    --card: #ffffff;
+    --fg: #1c1c1e;
+    --fg-dim: #6c6c70;
+    --line: rgba(0, 0, 0, 0.08);
+    --accent: #0066cc;
+    --accent-hover: #0052a3;
+    --ok: #34c759;
+    --bad: #ff3b30;
+    --shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+    --radius: 12px;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #1e1e21; --card: #2a2a2e; --fg: #ececec; --fg-dim: #9a9aa0;
-      --line: #3a3a3f; --accent: #4c8ee0; --ok: #3fb950; --bad: #f85149;
+      --bg: #1c1c1e;
+      --card: #2c2c2e;
+      --fg: #f2f2f7;
+      --fg-dim: #98989d;
+      --line: rgba(255, 255, 255, 0.1);
+      --accent: #0a84ff;
+      --accent-hover: #409cff;
+      --ok: #30d158;
+      --bad: #ff453a;
+      --shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
     }
   }
+
   * { box-sizing: border-box; }
   body {
-    margin: 0; padding: 34px 28px 40px; background: var(--bg); color: var(--fg);
-    font: 14px/1.5 -apple-system, system-ui, sans-serif; user-select: none;
+    margin: 0;
+    padding: 32px 24px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif;
+    user-select: none;
   }
-  .wrap { max-width: 620px; margin: 0 auto; }
-  h1 { margin: 0 0 4px; font-size: 22px; }
-  h2 { margin: 30px 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--fg-dim); }
-  p { margin: 0 0 14px; color: var(--fg-dim); }
-  .step { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
-  .step + .step { margin-top: 10px; }
-  .row { display: flex; align-items: center; gap: 12px; }
+
+  .wrap { max-width: 640px; margin: 0 auto; }
+
+  h1 {
+    margin: 0 0 6px;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  h2 {
+    margin: 28px 0 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--fg-dim);
+  }
+  p { margin: 0 0 18px; color: var(--fg-dim); font-size: 13.5px; }
+
+  .step {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+  }
+  .step + .step { margin-top: 12px; }
+
+  .row { display: flex; align-items: center; gap: 14px; }
   .row .text { flex: 1; }
-  .row .text b { display: block; color: var(--fg); font-weight: 600; }
-  .row .text span { color: var(--fg-dim); }
+  .row .text b { display: block; color: var(--fg); font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+  .row .text span { color: var(--fg-dim); font-size: 12.5px; }
+
   button {
-    padding: 7px 14px; border: 1px solid var(--line); border-radius: 7px;
-    background: var(--card); color: var(--fg); font: inherit; cursor: default; white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--fg);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: default;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    outline: none;
   }
-  button:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.link { border: 0; background: 0; color: var(--accent); padding: 0; }
-  button[disabled] { opacity: .5; }
-  .done { color: var(--ok); font-weight: 600; white-space: nowrap; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #ffffff;
+    font-weight: 600;
+  }
+  button.primary:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+    color: #ffffff;
+  }
+  button.danger {
+    background: var(--bad);
+    border-color: var(--bad);
+    color: #ffffff;
+  }
+  button.link {
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    padding: 0;
+  }
+  button.link:hover { text-decoration: underline; }
+  button[disabled] { opacity: .5; pointer-events: none; }
+
+  .done { color: var(--ok); font-weight: 600; white-space: nowrap; font-size: 13px; }
+
+  /* Search & Service Grid */
+  .search-box {
+    margin-bottom: 14px;
+  }
+  .search-box input {
+    width: 100%;
+    padding: 9px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--card);
+    color: var(--fg);
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+  .search-box input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 12px;
+  }
   .tile {
-    display: flex; align-items: center; gap: 10px; padding: 12px;
-    background: var(--card); border: 1px solid var(--line); border-radius: 10px; cursor: default;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    min-width: 0;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .tile:hover { border-color: var(--accent); }
-  .tile[data-added='true'] { opacity: .55; }
-  .tile .text { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .tile .name { font-weight: 500; }
-  .tile .sub { font-size: 11px; color: var(--fg-dim); }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; }
+  .tile:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+  .tile[data-added='true'] {
+    background: var(--card);
+    opacity: 0.9;
+  }
+  .tile-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+  .tile .text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .tile .name {
+    font-weight: 600;
+    font-size: 13.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tile .sub {
+    font-size: 11.5px;
+    color: var(--fg-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tile button {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+
   .status { font-size: 13px; margin: 10px 0 0; }
   .status.ok { color: var(--ok); }
   .status.bad { color: var(--bad); }
-  form { display: flex; gap: 8px; margin-top: 10px; }
-  input {
-    flex: 1; padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px;
-    background: var(--bg); color: var(--fg); font: inherit; user-select: text;
+
+  form#custom { display: flex; gap: 10px; margin-top: 14px; }
+  input[type="url"] {
+    flex: 1;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--fg);
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+    user-select: text;
   }
-  .foot { margin-top: 26px; display: flex; align-items: center; gap: 14px; }
+  input[type="url"]:focus { border-color: var(--accent); }
+
+  .foot { margin-top: 28px; display: flex; align-items: center; gap: 14px; }
   .hint { font-size: 12px; color: var(--fg-dim); }
   [hidden] { display: none !important; }
+
+  /* History list items */
+  .history-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 10px;
+  }
+  .history-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    object-fit: contain;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .history-content { flex: 1; min-width: 0; }
+  .history-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .history-title { font-weight: 600; font-size: 13.5px; color: var(--fg); }
+  .history-time { font-size: 11px; color: var(--fg-dim); white-space: nowrap; }
+  .history-body { font-size: 12.5px; color: var(--fg-dim); word-break: break-word; }
+  .history-action { margin-top: 8px; }
+  .history-action button { padding: 4px 10px; font-size: 11.5px; }
 </style>
+</head>
 <body>
   <div class="wrap">
     <!-- page 1: permissions -->
     <section id="welcome" hidden>
       <h1>Welcome to one-for-all</h1>
-      <p>Two things to set up. Both can wait — you can skip and do them later.</p>
+      <p>Configure notification permissions and startup settings for your macOS experience.</p>
 
       <div class="step">
         <div class="row">
           <div class="text">
-            <b>Notifications</b>
-            <span>macOS asks once. Without it the app can hear your messages but never tell you.</span>
+            <b>Notifications Permission</b>
+            <span>macOS asks once to send banners. Without it, messages arrive silently without popups.</span>
           </div>
           <button class="primary" id="allow">Allow</button>
-          <span class="done" id="allow-done" hidden>✓ Done</span>
+          <span class="done" id="allow-done" hidden>✓ Allowed</span>
         </div>
         <p class="status" id="allow-status" hidden></p>
         <p class="status" hidden id="allow-fix">
-          No banner, but the sound played? macOS has this app's Alert Style set to
-          <b>None</b> — open Settings and switch one-for-all to Banners or Alerts.
-          <br /><button class="link" id="open-settings">Open notification settings</button>
+          Banner missed? Ensure macOS Notification Settings has Alert Style set to
+          <b>Banners or Alerts</b>.
+          <br /><button class="link" id="open-settings" style="margin-top:6px">Open notification settings</button>
         </p>
       </div>
 
       <div class="step">
         <div class="row">
           <div class="text">
-            <b>Start at login</b>
-            <span>It only notifies while it is running, so it should start with your Mac.</span>
+            <b>Launch at Login</b>
+            <span>Automatically launch one-for-all when starting your Mac to receive notifications instantly.</span>
           </div>
           <button id="login-item">Turn on</button>
-          <span class="done" id="login-done" hidden>✓ On</span>
+          <span class="done" id="login-done" hidden>✓ Enabled</span>
         </div>
       </div>
 
@@ -101,21 +302,26 @@
 
     <!-- page 2: add services (+) -->
     <section id="services" hidden>
-      <h1>Add services</h1>
-      <p>Add web apps you want to receive notifications from.</p>
+      <h1>Add Services</h1>
+      <p>Select messaging & productivity web apps to receive native macOS notifications.</p>
+
+      <div class="search-box">
+        <input id="preset-search" type="text" placeholder="🔍 Search services (Messenger, Zalo, Gmail...)" />
+      </div>
 
       <div class="grid" id="grid"></div>
+
       <form id="custom">
-        <input id="url" type="url" placeholder="https://… any other web app" />
-        <button>Add</button>
+        <input id="url" type="url" placeholder="https://… any custom web app URL" />
+        <button class="primary">Add Web App</button>
       </form>
-      <p class="hint" style="margin-top:8px">
-        Log in once in the app window — your session is preserved.
+      <p class="hint" style="margin-top:10px">
+        Log in once inside the tab — your session and cookies are saved automatically.
       </p>
 
       <div class="foot">
-        <button id="done" hidden>Done</button>
-        <button class="link" id="back">Permissions</button>
+        <button id="done" class="primary" hidden>Done</button>
+        <button class="link" id="back">Settings</button>
         <span class="hint" id="tally"></span>
       </div>
     </section>
@@ -123,40 +329,80 @@
     <!-- page 3: settings (⚙️) -->
     <section id="settings" hidden>
       <h1>Settings</h1>
-      <p>Configure mode, performance, and startup behavior.</p>
+      <p>Manage permissions, operating modes, performance optimizations, and system startup.</p>
+
+      <h2>Permissions</h2>
+      <div class="step">
+        <div class="row">
+          <div class="text">
+            <b>Notifications Permission</b>
+            <span>macOS asks once to send banner notifications. Without it, messages arrive silently without popups.</span>
+          </div>
+          <button class="primary" id="settings-allow">Allow / Test</button>
+          <span class="done" id="settings-allow-done" hidden>✓ Allowed</span>
+        </div>
+        <p class="status" id="settings-allow-status" hidden></p>
+        <p class="status" hidden id="settings-allow-fix">
+          Banner missed? Ensure macOS Notification Settings has Alert Style set to
+          <b>Banners or Alerts</b>.
+          <br /><button class="link" id="settings-open-notification-settings" style="margin-top:6px">Open notification settings</button>
+        </p>
+      </div>
 
       <h2>Operating Mode</h2>
       <div class="step">
         <div class="row">
           <div class="text">
             <b>App Operating Mode</b>
-            <span>Normal: Full web UI tabs. Minimal: Compact notification board only, loads UI on demand.</span>
+            <span>Normal: Full tabs with web views. Minimal: Notification center only, loads UI on demand.</span>
           </div>
           <button id="mode-normal" class="primary">Normal Mode</button>
           <button id="mode-minimal">Minimal Mode</button>
         </div>
       </div>
 
-      <h2>Performance</h2>
+      <h2>Performance & Idle Sleep</h2>
       <div class="step">
         <div class="row">
           <div class="text">
             <b>RAM Optimization & Background Throttling</b>
-            <span>Reduces CPU/GPU usage for hidden tabs & unloads idle tabs after 30 minutes.</span>
+            <span>Saves battery and memory by throttling hidden background tabs.</span>
           </div>
           <button id="ram-toggle">Enabled</button>
         </div>
+      </div>
+
+      <div class="step">
+        <div class="row" style="align-items: flex-start;">
+          <div class="text">
+            <b>Auto-Sleep Idle Tabs</b>
+            <span>Automatically unloads memory for background tabs with no unread messages after the configured idle duration.</span>
+          </div>
+        </div>
+        <div class="idle-options" style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+          <button class="idle-btn" data-mins="5">5 mins</button>
+          <button class="idle-btn" data-mins="10">10 mins</button>
+          <button class="idle-btn" data-mins="15">15 mins</button>
+          <button class="idle-btn" data-mins="30">30 mins</button>
+          <button class="idle-btn" data-mins="60">60 mins</button>
+          <button class="idle-btn" data-mins="0">Off (Never)</button>
+          <form id="custom-idle-form" style="display:inline-flex; align-items:center; gap:6px; margin:0;">
+            <input id="custom-idle-input" type="number" min="1" max="1440" placeholder="Custom..." style="width: 90px; padding: 6px 10px; font-size: 12.5px;" />
+            <button class="primary" type="submit" style="padding: 6px 12px;">Save</button>
+          </form>
+        </div>
+        <p class="hint" id="idle-status" style="margin: 10px 0 0; font-size: 12.5px; color: var(--accent); font-weight: 500;"></p>
       </div>
 
       <h2>Startup</h2>
       <div class="step">
         <div class="row">
           <div class="text">
-            <b>Start at login</b>
-            <span>Start one-for-all automatically when logging into macOS.</span>
+            <b>Start at Login</b>
+            <span>Launch one-for-all automatically when logging into macOS.</span>
           </div>
           <button id="settings-login-item">Turn on</button>
-          <span class="done" id="settings-login-done" hidden>✓ On</span>
+          <span class="done" id="settings-login-done" hidden>✓ Enabled</span>
         </div>
       </div>
 
@@ -168,43 +414,66 @@
     <!-- page 4: notification history board (🔔) -->
     <section id="history" hidden>
       <h1>Notification History</h1>
-      <p>Recent notifications received across all services.</p>
+      <p>Recent notifications captured across all active services.</p>
 
       <div id="history-list"></div>
 
       <div class="foot">
-        <button id="history-clear" class="primary">Clear History</button>
+        <button id="history-clear" class="danger">Clear History</button>
       </div>
     </section>
   </div>
 
 <script>
   const $ = (id) => document.getElementById(id);
+  let genericIcon = ''; // filled in from main on first ofa:setup message
+
+  let currentPresets = [];
+  let currentServices = [];
+  let searchQuery = '';
 
   /* ------------------------------------------------------------ permissions */
+  // The welcome page and the settings page each have their own copy of the
+  // notification-permission step (ids prefixed "settings-" on the second one),
+  // so every action here is wired to both — skipping whichever isn't in the DOM.
+  const ALLOW_PREFIXES = ['allow', 'settings-allow'];
 
-  $('allow').onclick = () => {
-    $('allow-status').hidden = false;
-    $('allow-status').className = 'status';
-    $('allow-status').textContent = 'Sending a test notification…';
+  const triggerTestNotification = () => {
+    for (const prefix of ALLOW_PREFIXES) {
+      const el = $(`${prefix}-status`);
+      if (!el) continue;
+      el.hidden = false;
+      el.className = 'status';
+      el.textContent = 'Sending a test notification…';
+    }
     window.__setup.test();
   };
+  for (const prefix of ALLOW_PREFIXES) if ($(prefix)) $(prefix).onclick = triggerTestNotification;
 
   window.__setup.onTestResult(({ ok, err }) => {
-    const el = $('allow-status');
-    el.hidden = false;
-    el.className = 'status ' + (ok ? 'ok' : 'bad');
-    el.textContent = ok ? 'Sent.' : 'macOS refused: ' + err;
-    // Either way the next step is the same pane, so always offer it.
-    $('allow-fix').hidden = false;
+    const text = ok ? 'Test notification sent.' : 'macOS refused: ' + err;
+    for (const prefix of ALLOW_PREFIXES) {
+      const el = $(`${prefix}-status`);
+      if (!el) continue;
+      el.hidden = false;
+      el.className = 'status ' + (ok ? 'ok' : 'bad');
+      el.textContent = text;
+      $(`${prefix}-fix`).hidden = false;
+    }
   });
 
-  $('open-settings').onclick = () => window.__setup.openNotificationSettings();
+  for (const id of ['open-settings', 'settings-open-notification-settings']) {
+    if ($(id)) $(id).onclick = () => window.__setup.openNotificationSettings();
+  }
   $('login-item').onclick = () => window.__setup.setLoginItem(true);
   $('continue').onclick = () => window.__setup.finishWelcome();
   $('skip').onclick = () => window.__setup.finishWelcome();
 
   /* --------------------------------------------------------------- services */
+  $('preset-search').oninput = (e) => {
+    searchQuery = e.target.value.trim().toLowerCase();
+    renderGrid();
+  };
 
   $('custom').onsubmit = (e) => {
     e.preventDefault();
@@ -215,7 +484,7 @@
   };
 
   $('done').onclick = () => window.__setup.close();
-  $('back').onclick = () => window.__setup.page('welcome');
+  $('back').onclick = () => window.__setup.page('settings');
   $('settings-done').onclick = () => window.__setup.close();
   $('history-clear').onclick = () => window.__setup.clearHistory();
   $('settings-login-item').onclick = () => window.__setup.setLoginItem(true);
@@ -227,20 +496,103 @@
     window.__setup.setRamOptimization(!current);
   };
 
-  /* ------------------------------------------------------------------ state */
+  // Idle Sleep Preset buttons
+  document.querySelectorAll('.idle-btn').forEach((btn) => {
+    btn.onclick = () => {
+      const mins = Number(btn.dataset.mins);
+      window.__setup.setIdleSleepMinutes(mins);
+    };
+  });
 
-  window.__setup.onState(({ page, presets, services, canClose, notificationsOk, openAtLogin, appMode, ramOptimization, history }) => {
+  // Custom Idle Sleep form
+  $('custom-idle-form').onsubmit = (e) => {
+    e.preventDefault();
+    const val = Number($('custom-idle-input').value);
+    if (isNaN(val) || val < 1) return;
+    window.__setup.setIdleSleepMinutes(val);
+  };
+
+  function renderGrid() {
+    const added = new Set(currentServices.map((s) => s.id));
+    const grid = $('grid');
+    grid.textContent = '';
+
+    const filtered = currentPresets.filter((p) =>
+      p.name.toLowerCase().includes(searchQuery) || p.id.toLowerCase().includes(searchQuery)
+    );
+
+    if (!filtered.length) {
+      const noRes = document.createElement('p');
+      noRes.className = 'hint';
+      noRes.textContent = 'No matching service found.';
+      grid.append(noRes);
+      return;
+    }
+
+    for (const p of filtered) {
+      const isAdded = added.has(p.id);
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.dataset.added = String(isAdded);
+
+      // Icon
+      const img = document.createElement('img');
+      img.className = 'tile-icon';
+      img.src = p.icon || genericIcon;
+      img.onerror = () => { img.src = genericIcon; };
+
+      // Text
+      const text = document.createElement('div');
+      text.className = 'text';
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = p.name;
+      text.append(name);
+
+      const sub = document.createElement('span');
+      sub.className = 'sub';
+      sub.textContent = isAdded ? 'Added' : 'Available';
+      text.append(sub);
+
+      // Button
+      const act = document.createElement('button');
+      act.className = isAdded ? 'danger' : 'primary';
+      act.textContent = isAdded ? 'Remove' : 'Add';
+      act.onclick = () => (isAdded ? window.__setup.remove(p.id) : window.__setup.add({ preset: p.id }));
+
+      tile.append(img, text, act);
+      grid.append(tile);
+    }
+  }
+
+  function formatTime(timestamp) {
+    if (!timestamp) return '';
+    const diff = Math.floor((Date.now() - timestamp) / 1000);
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return new Date(timestamp).toLocaleDateString();
+  }
+
+  /* ------------------------------------------------------------------ state */
+  window.__setup.onState(({ page, presets, services, canClose, notificationsOk, openAtLogin, appMode, ramOptimization, idleSleepMinutes, history, genericIcon: gi }) => {
+    currentPresets = presets || [];
+    currentServices = services || [];
+    genericIcon = gi || genericIcon;
+
     $('welcome').hidden = page !== 'welcome';
     $('services').hidden = page !== 'services';
     $('settings').hidden = page !== 'settings';
     $('history').hidden = page !== 'history';
 
-    $('allow').hidden = notificationsOk;
-    $('allow-done').hidden = !notificationsOk;
-    $('login-item').hidden = openAtLogin;
-    $('login-done').hidden = !openAtLogin;
-    $('settings-login-item').hidden = openAtLogin;
-    $('settings-login-done').hidden = !openAtLogin;
+    const showDone = (btnId, doneId, done) => {
+      if ($(btnId)) $(btnId).hidden = done;
+      if ($(doneId)) $(doneId).hidden = !done;
+    };
+    showDone('allow', 'allow-done', notificationsOk);
+    showDone('settings-allow', 'settings-allow-done', notificationsOk);
+    showDone('login-item', 'login-done', openAtLogin);
+    showDone('settings-login-item', 'settings-login-done', openAtLogin);
 
     // Mode buttons
     const isMinimal = appMode === 'minimal';
@@ -253,42 +605,32 @@
     $('ram-toggle').textContent = ramOpt ? '✓ Enabled' : 'Disabled';
     $('ram-toggle').className = ramOpt ? 'primary' : '';
 
-    // Render Services Grid
-    const added = new Set(services.map((s) => s.id));
-    const grid = $('grid');
-    grid.textContent = '';
-    for (const p of presets) {
-      const isAdded = added.has(p.id);
-      const tile = document.createElement('div');
-      tile.className = 'tile';
-      tile.dataset.added = String(isAdded);
+    // Idle Sleep buttons & status
+    const mins = idleSleepMinutes !== undefined ? Number(idleSleepMinutes) : 30;
+    const presetList = [5, 10, 15, 30, 60, 0];
+    document.querySelectorAll('.idle-btn').forEach((btn) => {
+      const bMins = Number(btn.dataset.mins);
+      btn.className = (bMins === mins) ? 'idle-btn primary' : 'idle-btn';
+    });
 
-      const dot = document.createElement('span');
-      dot.className = 'dot';
-      const text = document.createElement('span');
-      text.className = 'text';
-      const name = document.createElement('span');
-      name.className = 'name';
-      name.textContent = p.name;
-      text.append(name);
-      if (isAdded) {
-        const sub = document.createElement('span');
-        sub.className = 'sub';
-        sub.textContent = 'Added — log in in the window';
-        text.append(sub);
-      }
-      const act = document.createElement('button');
-      act.className = 'link';
-      act.textContent = isAdded ? 'Remove' : 'Add';
-      act.onclick = () => (isAdded ? window.__setup.remove(p.id) : window.__setup.add({ preset: p.id }));
-
-      tile.append(dot, text, act);
-      grid.append(tile);
+    if (!presetList.includes(mins) && mins > 0) {
+      $('custom-idle-input').value = mins;
+    } else {
+      $('custom-idle-input').value = '';
     }
+
+    if (mins === 0) {
+      $('idle-status').textContent = '⚡ Status: Auto-sleep is OFF (Tabs stay in memory continuously)';
+    } else {
+      $('idle-status').textContent = `⚡ Status: Auto-sleep unloads RAM after ${mins} minutes of inactivity`;
+    }
+
+    // Render Grid
+    renderGrid();
     $('done').hidden = !canClose;
-    $('tally').textContent = services.length
-      ? `${services.length} service${services.length > 1 ? 's' : ''} added`
-      : 'Pick one to get started.';
+    $('tally').textContent = currentServices.length
+      ? `${currentServices.length} service${currentServices.length > 1 ? 's' : ''} added`
+      : 'Pick a service to start.';
 
     // Render Notification History
     const listEl = $('history-list');
@@ -301,34 +643,52 @@
       listEl.append(empty);
     } else {
       for (const item of items) {
-        const step = document.createElement('div');
-        step.className = 'step';
+        const card = document.createElement('div');
+        card.className = 'history-card';
 
-        const row = document.createElement('div');
-        row.className = 'row';
+        const img = document.createElement('img');
+        img.className = 'history-icon';
+        img.src = item.serviceIcon || genericIcon;
+        img.onerror = () => { img.src = genericIcon; };
 
-        const text = document.createElement('div');
-        text.className = 'text';
-        const title = document.createElement('b');
+        const content = document.createElement('div');
+        content.className = 'history-content';
+
+        const header = document.createElement('div');
+        header.className = 'history-header';
+
+        const title = document.createElement('span');
+        title.className = 'history-title';
         title.textContent = item.title || 'Notification';
-        const body = document.createElement('span');
+
+        const time = document.createElement('span');
+        time.className = 'history-time';
+        time.textContent = formatTime(item.at);
+
+        header.append(title, time);
+
+        const body = document.createElement('div');
+        body.className = 'history-body';
         body.textContent = item.body || '';
-        text.append(title, body);
+
+        content.append(header, body);
 
         if (item.serviceId) {
+          const action = document.createElement('div');
+          action.className = 'history-action';
           const openBtn = document.createElement('button');
           openBtn.className = 'primary';
           openBtn.textContent = 'Open Service';
           openBtn.onclick = () => window.__setup.select(item.serviceId);
-          row.append(text, openBtn);
-        } else {
-          row.append(text);
+          action.append(openBtn);
+          content.append(action);
         }
 
-        step.append(row);
-        listEl.append(step);
+        card.append(img, content);
+        listEl.append(card);
       }
     }
   });
 </script>
 </body>
+</html>

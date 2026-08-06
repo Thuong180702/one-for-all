@@ -10,8 +10,11 @@ const DEFAULTS = {
   startAtLogin: true,
   windowMode: 'window', // "window" | "menubar"
   appMode: 'normal', // "normal" (full UI on click) | "minimal" (notifications only, load UI on demand)
-  ramOptimization: true, // background throttling + lazy load
-  idleSleepMinutes: 30, // 0 = disabled, auto-sleep idle tabs after N minutes
+  // Background throttling saves RAM but pauses the WebSocket that keeps a hidden
+  // service connected — the whole reason this app exists. Off by default; opt in
+  // per README's footprint tradeoff.
+  ramOptimization: false,
+  idleSleepMinutes: 0, // 0 = disabled, auto-sleep idle tabs after N minutes
   globalShortcut: 'Cmd+Shift+Space',
   dnd: false, // manual override, toggled from the menu bar
   dndSchedule: [], // [{ from: "22:00", to: "08:00", days: [1,2,3,4,5] }]
@@ -59,7 +62,12 @@ function load() {
   try {
     return withDefaults(JSON.parse(fs.readFileSync(FILE, 'utf8')));
   } catch (err) {
-    if (err.code !== 'ENOENT') console.error(`config.json is unreadable (${err.message}); using defaults`);
+    if (err.code !== 'ENOENT') {
+      // Corrupt, not missing — keep the bytes around instead of silently
+      // replacing someone's whole service list with the seed config.
+      console.error(`config.json is unreadable (${err.message}); backing up and using defaults`);
+      try { fs.copyFileSync(FILE, `${FILE}.bak`); } catch {}
+    }
     const seed = withDefaults({
       ...DEFAULTS,
       services: [{ id: 'messenger', name: 'Messenger', url: 'https://www.messenger.com/' }],
@@ -71,7 +79,11 @@ function load() {
 
 function save(cfg) {
   fs.mkdirSync(DIR, { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify(cfg, null, 2));
+  // Write to a temp file and rename over the target: a crash mid-write can never
+  // leave config.json truncated or half-written for the next load() to choke on.
+  const tmp = `${FILE}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(cfg, null, 2));
+  fs.renameSync(tmp, FILE);
 }
 
 // "(3) Messenger" -> 3, "Inbox (12) - Gmail" -> 12, "(9+) Slack" -> 9

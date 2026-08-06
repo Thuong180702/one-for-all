@@ -4,9 +4,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('__tabs', {
   onUpdate: (cb) => ipcRenderer.on('ofa:tabs', (_e, data) => cb(data)),
   select: (id) => ipcRenderer.send('ofa:select', id),
-  openSetup: () => ipcRenderer.send('ofa:setup-open'),
-  openSettings: () => ipcRenderer.send('ofa:settings-open'),
-  openHistory: () => ipcRenderer.send('ofa:history-open'),
+  openSetup: () => ipcRenderer.send('ofa:open-page', 'services'),
+  openSettings: () => ipcRenderer.send('ofa:open-page', 'settings'),
+  openHistory: () => ipcRenderer.send('ofa:open-page', 'history'),
 });
 
 contextBridge.exposeInMainWorld('__setup', {

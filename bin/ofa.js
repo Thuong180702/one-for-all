@@ -44,9 +44,18 @@ const commands = {
       console.error(`Unknown service. Presets: ${Object.keys(presets).join(', ')}\nOr: ofa add --url <url> --name <name>`);
       process.exit(1);
     }
+    let host;
+    if (!preset) {
+      try {
+        host = new URL(url).hostname;
+      } catch {
+        console.error(`Not a valid URL: ${url}`);
+        process.exit(1);
+      }
+    }
     const service = preset
       ? { id: args[0], ...preset }
-      : { id: (flag('name') || new URL(url).hostname).toLowerCase().replace(/\W+/g, '-'), name: flag('name') || new URL(url).hostname, url };
+      : { id: (flag('name') || host).toLowerCase().replace(/\W+/g, '-'), name: flag('name') || host, url };
 
     // `--as work` is the whole multi-account story: a distinct id gets a distinct
     // session partition, so the second copy logs in independently.

@@ -1,93 +1,245 @@
 <!doctype html>
+<html lang="en">
+<head>
 <meta charset="utf-8" />
 <style>
   :root {
-    --bg: #ececec; --fg: #333; --fg-dim: #777; --active: #fff; --line: #d3d3d3; --badge: #e0352b;
+    --bg: rgba(236, 236, 240, 0.95);
+    --fg: #1c1c1e;
+    --fg-dim: #6c6c70;
+    --active-bg: #ffffff;
+    --active-fg: #000000;
+    --hover-bg: rgba(0, 0, 0, 0.05);
+    --line: rgba(0, 0, 0, 0.12);
+    --badge: #ff3b30;
+    --shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #2a2a2e; --fg: #ddd; --fg-dim: #888; --active: #3d3d42; --line: #1d1d20; }
+    :root {
+      --bg: rgba(38, 38, 42, 0.95);
+      --fg: #ececec;
+      --fg-dim: #98989d;
+      --active-bg: #3a3a3e;
+      --active-fg: #ffffff;
+      --hover-bg: rgba(255, 255, 255, 0.08);
+      --line: rgba(255, 255, 255, 0.12);
+      --badge: #ff453a;
+      --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; display: flex; align-items: stretch; height: 100vh; overflow: hidden;
-    background: var(--bg); border-bottom: 1px solid var(--line);
-    font: 13px -apple-system, system-ui, sans-serif; color: var(--fg); user-select: none;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--bg);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--line);
+    font: 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif;
+    color: var(--fg);
+    user-select: none;
+    padding: 0 8px;
+    gap: 4px;
+    -webkit-app-region: drag;
   }
+
+  .tabs-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-app-region: no-drag;
+  }
+  .tabs-container::-webkit-scrollbar { display: none; }
+
   button {
-    display: flex; align-items: center; gap: 6px; padding: 0 14px;
-    border: 0; border-right: 1px solid var(--line); background: transparent;
-    font: inherit; color: var(--fg-dim); cursor: default; white-space: nowrap;
+    -webkit-app-region: no-drag;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 26px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    font: inherit;
+    color: var(--fg-dim);
+    cursor: default;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    outline: none;
   }
-  button:hover { color: var(--fg); }
-  button[aria-selected='true'] { background: var(--active); color: var(--fg); font-weight: 500; }
+  button:hover {
+    background: var(--hover-bg);
+    color: var(--fg);
+  }
+  button[aria-selected='true'] {
+    background: var(--active-bg);
+    color: var(--active-fg);
+    font-weight: 500;
+    box-shadow: var(--shadow);
+  }
+
+  .tab-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .tab-name {
+    font-weight: 500;
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .badge {
-    min-width: 17px; padding: 1px 5px; border-radius: 9px;
-    background: var(--badge); color: #fff; font-size: 11px; font-weight: 600; text-align: center;
+    min-width: 18px;
+    height: 16px;
+    line-height: 16px;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: var(--badge);
+    color: #ffffff;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(255, 59, 48, 0.4);
+    animation: pulse 2s infinite ease-in-out;
   }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+
   .muted { opacity: 0.45; }
-  .empty { padding: 0 14px; align-self: center; color: var(--fg-dim); }
-  #add { font-size: 17px; color: var(--fg-dim); }
+  .empty {
+    padding: 0 12px;
+    color: var(--fg-dim);
+    font-style: italic;
+    -webkit-app-region: no-drag;
+  }
+
+  #add {
+    font-size: 16px;
+    font-weight: 400;
+    padding: 0 8px;
+    height: 26px;
+    border-radius: 6px;
+    color: var(--fg-dim);
+  }
+  #add:hover {
+    color: var(--fg);
+    background: var(--hover-bg);
+  }
+
+  .actions-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    -webkit-app-region: no-drag;
+  }
+  .icon-btn {
+    width: 28px;
+    height: 26px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 14px;
+  }
 </style>
-<body></body>
+</head>
+<body>
+  <div class="tabs-container" id="tabs-list"></div>
+  <div class="actions-right">
+    <button class="icon-btn" id="settings" title="Settings">⚙️</button>
+  </div>
+
 <script>
   window.__tabs.onUpdate((data) => {
-    document.body.textContent = '';
+    const container = document.getElementById('tabs-list');
+    container.textContent = '';
+
     const list = Array.isArray(data) ? data : (data.list || []);
+    const genericIcon = (data && data.genericIcon) || '';
     const isMinimal = data && data.appMode === 'minimal';
     const isSetupOpen = data && data.setupOpen;
     const setupPage = data && data.setupPage;
 
     if (isMinimal) {
-      // ── Minimal Mode Header ──────────────────────────────────────
+      // Minimal Mode Header
       const notifBtn = document.createElement('button');
       if (isSetupOpen) {
         notifBtn.ariaSelected = String(setupPage === 'history');
         notifBtn.append('🔔 Notifications');
       } else {
-        // User is viewing a full service webview → offer a "Back to Notifications" button
         notifBtn.append('⬅ Notifications');
       }
       notifBtn.onclick = () => window.__tabs.openHistory();
-      document.body.append(notifBtn);
+      container.append(notifBtn);
     } else {
-      // ── Normal Mode Header ────────────────────────────────────────
+      // Normal Mode Tabs Header
       if (!list.length) {
-        const p = document.createElement('span');
-        p.className = 'empty';
-        p.textContent = 'No services yet';
-        document.body.append(p);
-      }
-      for (const s of list) {
-        const b = document.createElement('button');
-        b.ariaSelected = String(!isSetupOpen && s.active);
-        if (s.muted) b.classList.add('muted');
-        b.append(s.name);
-        if (s.unread) {
-          const n = document.createElement('span');
-          n.className = 'badge';
-          n.textContent = s.unread;
-          b.append(n);
+        const emptySpan = document.createElement('span');
+        emptySpan.className = 'empty';
+        emptySpan.textContent = 'No services added';
+        container.append(emptySpan);
+      } else {
+        for (const s of list) {
+          const btn = document.createElement('button');
+          btn.ariaSelected = String(!isSetupOpen && s.active);
+          if (s.muted) btn.classList.add('muted');
+          btn.title = s.name;
+
+          // Service Icon
+          const img = document.createElement('img');
+          img.className = 'tab-icon';
+          img.src = s.icon || genericIcon;
+          img.onerror = () => { img.src = genericIcon; };
+          btn.append(img);
+
+          // Service Name
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'tab-name';
+          nameSpan.textContent = s.name;
+          btn.append(nameSpan);
+
+          // Unread Count Badge
+          if (s.unread) {
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.textContent = s.unread > 99 ? '99+' : s.unread;
+            btn.append(badge);
+          }
+
+          btn.onclick = () => window.__tabs.select(s.id);
+          container.append(btn);
         }
-        b.onclick = () => window.__tabs.select(s.id);
-        document.body.append(b);
       }
 
-      // Add (+) Button
-      const add = document.createElement('button');
-      add.id = 'add';
-      add.title = 'Add a service';
-      add.append('+');
-      add.onclick = () => window.__tabs.openSetup();
-      document.body.append(add);
+      // Add Service (+) Button
+      const addBtn = document.createElement('button');
+      addBtn.id = 'add';
+      addBtn.title = 'Add a service';
+      addBtn.textContent = '+';
+      addBtn.onclick = () => window.__tabs.openSetup();
+      container.append(addBtn);
     }
 
-    // ── Right-aligned Settings (⚙) Button ────────────────────────
-    const settings = document.createElement('button');
-    settings.style.marginLeft = 'auto';
-    settings.title = 'Settings';
-    settings.ariaSelected = String(isSetupOpen && setupPage === 'settings');
-    settings.append('⚙️');
-    settings.onclick = () => window.__tabs.openSettings();
-    document.body.append(settings);
+    // Settings Button
+    const settingsBtn = document.getElementById('settings');
+    settingsBtn.ariaSelected = String(isSetupOpen && setupPage === 'settings');
+    settingsBtn.onclick = () => window.__tabs.openSettings();
   });
 </script>
+</body>
+</html>
