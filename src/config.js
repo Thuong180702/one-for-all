@@ -9,6 +9,9 @@ const FILE = path.join(DIR, 'config.json');
 const DEFAULTS = {
   startAtLogin: true,
   windowMode: 'window', // "window" | "menubar"
+  appMode: 'normal', // "normal" (full UI on click) | "minimal" (notifications only, load UI on demand)
+  ramOptimization: true, // background throttling + lazy load
+  idleSleepMinutes: 30, // 0 = disabled, auto-sleep idle tabs after N minutes
   globalShortcut: 'Cmd+Shift+Space',
   dnd: false, // manual override, toggled from the menu bar
   dndSchedule: [], // [{ from: "22:00", to: "08:00", days: [1,2,3,4,5] }]

@@ -42,7 +42,9 @@
   }
   .tile:hover { border-color: var(--accent); }
   .tile[data-added='true'] { opacity: .55; }
-  .tile .name { flex: 1; font-weight: 500; }
+  .tile .text { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .tile .name { font-weight: 500; }
+  .tile .sub { font-size: 11px; color: var(--fg-dim); }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; }
   .status { font-size: 13px; margin: 10px 0 0; }
   .status.ok { color: var(--ok); }
@@ -74,7 +76,9 @@
         </div>
         <p class="status" id="allow-status" hidden></p>
         <p class="status" hidden id="allow-fix">
-          <button class="link" id="open-settings">Open notification settings</button>
+          No banner, but the sound played? macOS has this app's Alert Style set to
+          <b>None</b> — open Settings and switch one-for-all to Banners or Alerts.
+          <br /><button class="link" id="open-settings">Open notification settings</button>
         </p>
       </div>
 
@@ -95,10 +99,10 @@
       </div>
     </section>
 
-    <!-- page 2: services -->
+    <!-- page 2: add services (+) -->
     <section id="services" hidden>
-      <h1>Add your services</h1>
-      <p>Each one runs in here, logged in and never throttled. That is what makes the notifications work.</p>
+      <h1>Add services</h1>
+      <p>Add web apps you want to receive notifications from.</p>
 
       <div class="grid" id="grid"></div>
       <form id="custom">
@@ -106,14 +110,70 @@
         <button>Add</button>
       </form>
       <p class="hint" style="margin-top:8px">
-        Adding one opens its login page. Log in once — the session is kept on disk.
-        Closing the window keeps the app running in the menu bar; only Quit stops the notifications.
+        Log in once in the app window — your session is preserved.
       </p>
 
       <div class="foot">
         <button id="done" hidden>Done</button>
         <button class="link" id="back">Permissions</button>
         <span class="hint" id="tally"></span>
+      </div>
+    </section>
+
+    <!-- page 3: settings (⚙️) -->
+    <section id="settings" hidden>
+      <h1>Settings</h1>
+      <p>Configure mode, performance, and startup behavior.</p>
+
+      <h2>Operating Mode</h2>
+      <div class="step">
+        <div class="row">
+          <div class="text">
+            <b>App Operating Mode</b>
+            <span>Normal: Full web UI tabs. Minimal: Compact notification board only, loads UI on demand.</span>
+          </div>
+          <button id="mode-normal" class="primary">Normal Mode</button>
+          <button id="mode-minimal">Minimal Mode</button>
+        </div>
+      </div>
+
+      <h2>Performance</h2>
+      <div class="step">
+        <div class="row">
+          <div class="text">
+            <b>RAM Optimization & Background Throttling</b>
+            <span>Reduces CPU/GPU usage for hidden tabs & unloads idle tabs after 30 minutes.</span>
+          </div>
+          <button id="ram-toggle">Enabled</button>
+        </div>
+      </div>
+
+      <h2>Startup</h2>
+      <div class="step">
+        <div class="row">
+          <div class="text">
+            <b>Start at login</b>
+            <span>Start one-for-all automatically when logging into macOS.</span>
+          </div>
+          <button id="settings-login-item">Turn on</button>
+          <span class="done" id="settings-login-done" hidden>✓ On</span>
+        </div>
+      </div>
+
+      <div class="foot">
+        <button id="settings-done" class="primary">Done</button>
+      </div>
+    </section>
+
+    <!-- page 4: notification history board (🔔) -->
+    <section id="history" hidden>
+      <h1>Notification History</h1>
+      <p>Recent notifications received across all services.</p>
+
+      <div id="history-list"></div>
+
+      <div class="foot">
+        <button id="history-clear" class="primary">Clear History</button>
       </div>
     </section>
   </div>
@@ -134,9 +194,7 @@
     const el = $('allow-status');
     el.hidden = false;
     el.className = 'status ' + (ok ? 'ok' : 'bad');
-    el.textContent = ok
-      ? 'Sent. If no banner appeared, the app is allowed but its alert style is off.'
-      : 'macOS refused: ' + err;
+    el.textContent = ok ? 'Sent.' : 'macOS refused: ' + err;
     // Either way the next step is the same pane, so always offer it.
     $('allow-fix').hidden = false;
   });
@@ -158,18 +216,44 @@
 
   $('done').onclick = () => window.__setup.close();
   $('back').onclick = () => window.__setup.page('welcome');
+  $('settings-done').onclick = () => window.__setup.close();
+  $('history-clear').onclick = () => window.__setup.clearHistory();
+  $('settings-login-item').onclick = () => window.__setup.setLoginItem(true);
+
+  $('mode-normal').onclick = () => window.__setup.setAppMode('normal');
+  $('mode-minimal').onclick = () => window.__setup.setAppMode('minimal');
+  $('ram-toggle').onclick = () => {
+    const current = $('ram-toggle').dataset.enabled === 'true';
+    window.__setup.setRamOptimization(!current);
+  };
 
   /* ------------------------------------------------------------------ state */
 
-  window.__setup.onState(({ page, presets, services, canClose, notificationsOk, openAtLogin }) => {
+  window.__setup.onState(({ page, presets, services, canClose, notificationsOk, openAtLogin, appMode, ramOptimization, history }) => {
     $('welcome').hidden = page !== 'welcome';
     $('services').hidden = page !== 'services';
+    $('settings').hidden = page !== 'settings';
+    $('history').hidden = page !== 'history';
 
     $('allow').hidden = notificationsOk;
     $('allow-done').hidden = !notificationsOk;
     $('login-item').hidden = openAtLogin;
     $('login-done').hidden = !openAtLogin;
+    $('settings-login-item').hidden = openAtLogin;
+    $('settings-login-done').hidden = !openAtLogin;
 
+    // Mode buttons
+    const isMinimal = appMode === 'minimal';
+    $('mode-normal').className = isMinimal ? '' : 'primary';
+    $('mode-minimal').className = isMinimal ? 'primary' : '';
+
+    // RAM toggle
+    const ramOpt = ramOptimization !== false;
+    $('ram-toggle').dataset.enabled = String(ramOpt);
+    $('ram-toggle').textContent = ramOpt ? '✓ Enabled' : 'Disabled';
+    $('ram-toggle').className = ramOpt ? 'primary' : '';
+
+    // Render Services Grid
     const added = new Set(services.map((s) => s.id));
     const grid = $('grid');
     grid.textContent = '';
@@ -181,21 +265,70 @@
 
       const dot = document.createElement('span');
       dot.className = 'dot';
+      const text = document.createElement('span');
+      text.className = 'text';
       const name = document.createElement('span');
       name.className = 'name';
       name.textContent = p.name;
+      text.append(name);
+      if (isAdded) {
+        const sub = document.createElement('span');
+        sub.className = 'sub';
+        sub.textContent = 'Added — log in in the window';
+        text.append(sub);
+      }
       const act = document.createElement('button');
       act.className = 'link';
       act.textContent = isAdded ? 'Remove' : 'Add';
       act.onclick = () => (isAdded ? window.__setup.remove(p.id) : window.__setup.add({ preset: p.id }));
 
-      tile.append(dot, name, act);
+      tile.append(dot, text, act);
       grid.append(tile);
     }
     $('done').hidden = !canClose;
     $('tally').textContent = services.length
-      ? `${services.length} service${services.length > 1 ? 's' : ''} connected`
+      ? `${services.length} service${services.length > 1 ? 's' : ''} added`
       : 'Pick one to get started.';
+
+    // Render Notification History
+    const listEl = $('history-list');
+    listEl.textContent = '';
+    const items = history || [];
+    if (!items.length) {
+      const empty = document.createElement('p');
+      empty.className = 'hint';
+      empty.textContent = 'No notifications received yet.';
+      listEl.append(empty);
+    } else {
+      for (const item of items) {
+        const step = document.createElement('div');
+        step.className = 'step';
+
+        const row = document.createElement('div');
+        row.className = 'row';
+
+        const text = document.createElement('div');
+        text.className = 'text';
+        const title = document.createElement('b');
+        title.textContent = item.title || 'Notification';
+        const body = document.createElement('span');
+        body.textContent = item.body || '';
+        text.append(title, body);
+
+        if (item.serviceId) {
+          const openBtn = document.createElement('button');
+          openBtn.className = 'primary';
+          openBtn.textContent = 'Open Service';
+          openBtn.onclick = () => window.__setup.select(item.serviceId);
+          row.append(text, openBtn);
+        } else {
+          row.append(text);
+        }
+
+        step.append(row);
+        listEl.append(step);
+      }
+    }
   });
 </script>
 </body>

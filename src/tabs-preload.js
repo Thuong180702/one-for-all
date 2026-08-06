@@ -2,9 +2,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Our own chrome (the tab strip and the setup screen), not a hosted service.
 contextBridge.exposeInMainWorld('__tabs', {
-  onUpdate: (cb) => ipcRenderer.on('ofa:tabs', (_e, list) => cb(list)),
+  onUpdate: (cb) => ipcRenderer.on('ofa:tabs', (_e, data) => cb(data)),
   select: (id) => ipcRenderer.send('ofa:select', id),
   openSetup: () => ipcRenderer.send('ofa:setup-open'),
+  openSettings: () => ipcRenderer.send('ofa:settings-open'),
+  openHistory: () => ipcRenderer.send('ofa:history-open'),
 });
 
 contextBridge.exposeInMainWorld('__setup', {
@@ -18,4 +20,9 @@ contextBridge.exposeInMainWorld('__setup', {
   finishWelcome: () => ipcRenderer.send('ofa:onboarded'),
   setLoginItem: (on) => ipcRenderer.send('ofa:login-item', on),
   openNotificationSettings: () => ipcRenderer.send('ofa:notification-settings'),
+  setAppMode: (mode) => ipcRenderer.send('ofa:set-app-mode', mode),
+  setRamOptimization: (on) => ipcRenderer.send('ofa:set-ram-opt', on),
+  setIdleSleepMinutes: (mins) => ipcRenderer.send('ofa:set-idle-sleep', mins),
+  select: (id) => ipcRenderer.send('ofa:select', id),
+  clearHistory: () => ipcRenderer.send('ofa:history-clear'),
 });

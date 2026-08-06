@@ -30,33 +30,64 @@
 </style>
 <body></body>
 <script>
-  window.__tabs.onUpdate((list) => {
+  window.__tabs.onUpdate((data) => {
     document.body.textContent = '';
-    if (!list.length) {
-      const p = document.createElement('span');
-      p.className = 'empty';
-      p.textContent = 'No services yet';
-      document.body.append(p);
-    }
-    for (const s of list) {
-      const b = document.createElement('button');
-      b.ariaSelected = String(s.active);
-      if (s.muted) b.classList.add('muted');
-      b.append(s.name);
-      if (s.unread) {
-        const n = document.createElement('span');
-        n.className = 'badge';
-        n.textContent = s.unread;
-        b.append(n);
+    const list = Array.isArray(data) ? data : (data.list || []);
+    const isMinimal = data && data.appMode === 'minimal';
+    const isSetupOpen = data && data.setupOpen;
+    const setupPage = data && data.setupPage;
+
+    if (isMinimal) {
+      // ── Minimal Mode Header ──────────────────────────────────────
+      const notifBtn = document.createElement('button');
+      if (isSetupOpen) {
+        notifBtn.ariaSelected = String(setupPage === 'history');
+        notifBtn.append('🔔 Notifications');
+      } else {
+        // User is viewing a full service webview → offer a "Back to Notifications" button
+        notifBtn.append('⬅ Notifications');
       }
-      b.onclick = () => window.__tabs.select(s.id);
-      document.body.append(b);
+      notifBtn.onclick = () => window.__tabs.openHistory();
+      document.body.append(notifBtn);
+    } else {
+      // ── Normal Mode Header ────────────────────────────────────────
+      if (!list.length) {
+        const p = document.createElement('span');
+        p.className = 'empty';
+        p.textContent = 'No services yet';
+        document.body.append(p);
+      }
+      for (const s of list) {
+        const b = document.createElement('button');
+        b.ariaSelected = String(!isSetupOpen && s.active);
+        if (s.muted) b.classList.add('muted');
+        b.append(s.name);
+        if (s.unread) {
+          const n = document.createElement('span');
+          n.className = 'badge';
+          n.textContent = s.unread;
+          b.append(n);
+        }
+        b.onclick = () => window.__tabs.select(s.id);
+        document.body.append(b);
+      }
+
+      // Add (+) Button
+      const add = document.createElement('button');
+      add.id = 'add';
+      add.title = 'Add a service';
+      add.append('+');
+      add.onclick = () => window.__tabs.openSetup();
+      document.body.append(add);
     }
-    const add = document.createElement('button');
-    add.id = 'add';
-    add.title = 'Add a service';
-    add.append('+');
-    add.onclick = () => window.__tabs.openSetup();
-    document.body.append(add);
+
+    // ── Right-aligned Settings (⚙) Button ────────────────────────
+    const settings = document.createElement('button');
+    settings.style.marginLeft = 'auto';
+    settings.title = 'Settings';
+    settings.ariaSelected = String(isSetupOpen && setupPage === 'settings');
+    settings.append('⚙️');
+    settings.onclick = () => window.__tabs.openSettings();
+    document.body.append(settings);
   });
 </script>

@@ -21,7 +21,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "test": "node test/test.js",
+    "test": "node test/test.js && node test/test-notify-pipeline.js && node test/test-preload-shim.js && node test/test-mode-and-ram.js",
     "build": "node scripts/build-app.js"
   },
   "dependencies": {

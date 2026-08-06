@@ -1,6 +1,7 @@
 // Known services, for `ofa add <id>`. PRs adding rows here are welcome.
 module.exports = {
-  messenger: { name: 'Messenger', url: 'https://www.messenger.com/' },
+  // Messenger uses Service Worker push, not window.Notification — needs the unread-count fallback.
+  messenger: { name: 'Messenger', url: 'https://www.messenger.com/', notifyOnUnread: true },
   // Zalo never calls the Notification API, so it needs the unread-count fallback.
   zalo: { name: 'Zalo', url: 'https://chat.zalo.me/', notifyOnUnread: true },
   gmail: { name: 'Gmail', url: 'https://mail.google.com/' },

@@ -12,7 +12,7 @@
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const buildIcns = require('./icon');
+const buildIcns = require('../src/icon');
 
 const ROOT = path.join(__dirname, '..');
 const pkg = require(path.join(ROOT, 'package.json'));

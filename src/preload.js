@@ -75,6 +75,22 @@ function shim() {
     visible = v;
     document.dispatchEvent(new Event('visibilitychange'));
   });
+
+  // Intercept page-initiated Service Worker notifications.
+  // Messenger (and similar apps) often call:
+  //   navigator.serviceWorker.ready.then(reg => reg.showNotification(title, opts))
+  // from the page context rather than window.Notification. Overriding the prototype
+  // here catches that path and relays it through ofa:notify with full title + body.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(function (reg) {
+      var proto = Object.getPrototypeOf(reg);
+      proto.showNotification = function swNotification(title, options) {
+        options = options || {};
+        window.__ofa.notify({ id: ++seq, title: String(title), body: options.body || '' });
+        return Promise.resolve(); // swallow the native display; we handle it
+      };
+    }).catch(function () {});
+  }
 }
 
 webFrame.executeJavaScript(`(${shim})()`);

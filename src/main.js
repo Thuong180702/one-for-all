@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 const presets = require('./presets');
+const { trayPng } = require('./icon');
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
@@ -14,6 +15,12 @@ if (!app.requestSingleInstanceLock()) app.quit();
 app.commandLine.appendSwitch('disk-cache-size', String(64 * 1024 * 1024));
 
 const TAB_H = 34;
+const LOG_FILE = path.join(config.DIR, 'ofa-debug.log');
+function dbg(...args) {
+  const line = `[${new Date().toISOString()}] ${args.join(' ')}\n`;
+  try { fs.appendFileSync(LOG_FILE, line); } catch {}
+  console.log('[ofa-debug]', ...args);
+}
 const PIDFILE = path.join(config.DIR, 'ofa.pid');
 
 let cfg = config.load();
@@ -35,6 +42,7 @@ function addService(service) {
   // Auto-grant notifications so the site never falls into "blocked" mode; deny the rest.
   ses.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'notifications'));
 
+  const ramOpt = cfg.ramOptimization !== false;
   const view = new WebContentsView({
     webPreferences: {
       session: ses,
@@ -42,15 +50,18 @@ function addService(service) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      backgroundThrottling: false,
+      backgroundThrottling: ramOpt,
       spellcheck: false, // dictionaries and a spell-check pass we never look at
     },
   });
   const entry = {
     view, service, unread: 0, lastSeen: Date.now(), loadedAt: Date.now(), sawApiNotification: false,
+    pendingNotify: null,      // { base, timer } — debounce unread-count notifications
+    notifyCooldownUntil: 0,   // suppress repeat popups for 2 min; reset when user views tab
+    isSleeping: false,
   };
   const wc = view.webContents;
-  wc.setBackgroundThrottling(false);
+  wc.setBackgroundThrottling(ramOpt);
   // Every load restarts the unread count from zero; the settle window keeps a
   // reload (or a wake-from-sleep) from replaying the whole backlog as popups.
   // did-finish-load never fires on messenger.com (it aborts the initial load);
@@ -82,6 +93,7 @@ function addService(service) {
 function removeService(id) {
   const entry = views.get(id);
   if (!entry) return;
+  if (entry.pendingNotify) { clearTimeout(entry.pendingNotify.timer); entry.pendingNotify = null; }
   win.contentView.removeChildView(entry.view);
   entry.view.webContents.close();
   views.delete(id);
@@ -96,6 +108,18 @@ function removeService(id) {
 function switchTo(id) {
   const entry = views.get(id);
   if (!entry) return;
+  // User is now looking at this service: reset notification cooldown so the next
+  // message after they leave will trigger a fresh popup.
+  entry.notifyCooldownUntil = 0;
+  entry.sawApiNotification = false; // allow the unread-count fallback to fire again
+
+  // Wake up if tab was sleeping due to RAM optimization
+  if (entry.isSleeping) {
+    entry.isSleeping = false;
+    entry.loadedAt = Date.now();
+    entry.view.webContents.loadURL(entry.service.url);
+  }
+
   active = id;
   win.contentView.addChildView(entry.view); // re-adding raises it to the front
   win.setTitle(entry.service.name);
@@ -105,10 +129,12 @@ function switchTo(id) {
   updateVisibility();
 }
 
-// A service is "on screen" only if the window is up and it is the front tab.
-// Everything else must look hidden to the page, or it will never notify.
+// A service is "on screen" only if the window is up, focused (user is actively
+// using this app), and it is the front tab. Using isFocused() is critical: when
+// the user switches to another app, all services see visible=false and will use
+// their own Notification API — giving us full sender name + message content.
 function updateVisibility() {
-  const shown = !!win && win.isVisible() && !setupOpen;
+  const shown = !!win && win.isVisible() && win.isFocused() && !setupOpen;
   for (const [id, entry] of views) {
     const wc = entry.view.webContents;
     if (!wc.isDestroyed()) wc.send('ofa:visibility', shown && id === active);
@@ -145,6 +171,7 @@ function openSetup(page = 'services') {
   win.contentView.addChildView(setupView); // re-adding raises it over the services
   layout();
   renderSetup();
+  renderTabs();
   updateVisibility();
 }
 
@@ -154,6 +181,7 @@ function closeSetup() {
   win.contentView.removeChildView(setupView);
   setupView.webContents.close(); // a whole renderer process for a screen nobody is looking at
   setupView = null;
+  renderTabs();
   if (active) switchTo(active); // also re-runs layout and visibility
   else updateVisibility();
 }
@@ -166,6 +194,10 @@ function renderSetup() {
     services: cfg.services.map((s) => ({ id: s.id, name: s.name })),
     canClose: views.size > 0,
     notificationsOk: !!cfg.notificationsOk,
+    appMode: cfg.appMode || 'normal',
+    ramOptimization: cfg.ramOptimization !== false,
+    idleSleepMinutes: cfg.idleSleepMinutes || 30,
+    history: history.slice(0, 50),
     // an unpackaged run has no login item to read, so fall back to what config says
     openAtLogin: app.isPackaged ? app.getLoginItemSettings().openAtLogin : !!cfg.startAtLogin,
   });
@@ -190,11 +222,34 @@ function positionUnderTray() {
   );
 }
 
-function show() {
+function show(forceService = false) {
   if (isMenubar()) positionUnderTray();
   win.show();
   app.focus({ steal: true });
+  // Minimal mode: show notification board / setup unless explicitly opening a service
+  if (cfg.appMode === 'minimal' && !forceService && !setupOpen) {
+    openSetup('services');
+  }
 }
+
+// ── RAM Optimization: Idle Sleep Watchdog ────────────────────────────
+// Periodically checks for inactive services that have been idle for > idleSleepMinutes.
+// Temporarily unloads their webview URL to free up 100% of their RAM.
+setInterval(() => {
+  const mins = cfg.idleSleepMinutes;
+  if (!mins || mins <= 0) return;
+  const timeoutMs = mins * 60 * 1000;
+  const now = Date.now();
+
+  for (const [id, entry] of views) {
+    if (id === active || entry.isSleeping || entry.unread > 0) continue;
+    if (now - entry.lastSeen > timeoutMs) {
+      dbg(`RAM Optimization: sleeping idle service=${id} (idle for ${mins}m)`);
+      entry.isSleeping = true;
+      entry.view.webContents.loadURL('about:blank'); // release heavy DOM memory
+    }
+  }
+}, 60000);
 
 /* ------------------------------------------------------------ config reload */
 
@@ -250,6 +305,7 @@ function retain(n) {
 }
 
 function notify({ title, body, sound, serviceId, onClick }) {
+  dbg(`notify() called title="${title}" body="${body}" serviceId=${serviceId}`);
   if (cfg.history) {
     history.unshift({ at: Date.now(), serviceId, title, body });
     history.length = Math.min(history.length, 200);
@@ -259,13 +315,14 @@ function notify({ title, body, sound, serviceId, onClick }) {
     subtitle: views.get(serviceId)?.service.name || '',
     body: body || '',
     silent: sound === null,
-    // macOS takes a sound *name* here ("Ping", "Glass"); "default" means leave it alone.
     ...(sound && sound !== 'default' ? { sound } : {}),
   }));
+  n.on('show', () => dbg(`notification SHOWN title="${title}"}`));
   n.on('click', onClick);
-  // Silence here is the worst failure mode this app has: everything looks fine
-  // and nothing ever pops. UNErrorDomain 1 = macOS is blocking us.
-  n.on('failed', (_e, err) => console.error(`[ofa] notification failed: ${err}\n[ofa] System Settings > Notifications > ${app.getName()} — allow notifications.`));
+  n.on('failed', (_e, err) => {
+    dbg(`notification FAILED title="${title}" err=${err}`);
+    console.error(`[ofa] notification failed: ${err}\n[ofa] System Settings > Notifications > ${app.getName()} — allow notifications.`);
+  });
   n.show();
 }
 
@@ -274,24 +331,28 @@ const findEntry = (senderId) => [...views.values()].find((v) => v.view.webConten
 // Preload reruns on every navigation, so it asks rather than us guessing when to tell it.
 ipcMain.on('ofa:hello', (e) => {
   const entry = findEntry(e.sender.id);
-  if (entry) e.sender.send('ofa:visibility', win.isVisible() && !setupOpen && entry.service.id === active);
+  if (entry) e.sender.send('ofa:visibility', win.isVisible() && win.isFocused() && !setupOpen && entry.service.id === active);
 });
 
 ipcMain.on('ofa:notify', (e, payload) => {
   const entry = findEntry(e.sender.id);
-  if (!entry) return;
+  dbg(`ofa:notify received service=${entry?.service?.id} title="${payload?.title}"`);
+  if (!entry) { dbg('ofa:notify no entry found, dropping'); return; }
   entry.lastSeen = Date.now();
-  entry.sawApiNotification = true; // stops the unread fallback from doubling up
-  if (!config.shouldNotify(entry.service, cfg, payload)) return;
+  entry.sawApiNotification = true;
+  // Real API notification cancels any pending unread-count fallback to avoid duplicates.
+  if (entry.pendingNotify) { clearTimeout(entry.pendingNotify.timer); entry.pendingNotify = null; }
+  const ok = config.shouldNotify(entry.service, cfg, payload);
+  dbg(`shouldNotify=${ok} muted=${entry.service.muted} dnd=${config.isDndActive(cfg)}`);
+  if (!ok) return;
   notify({
     title: payload.title || entry.service.name,
     body: payload.body,
     sound: entry.service.sound,
     serviceId: entry.service.id,
     onClick: () => {
-      show();
+      show(true);
       switchTo(entry.service.id);
-      // Replaying the page's own onclick is what navigates to the right thread.
       if (!e.sender.isDestroyed()) e.sender.send('ofa:click', payload.id);
     },
   });
@@ -304,34 +365,74 @@ ipcMain.on('ofa:title', (e, title) => {
   const unread = config.parseUnread(title);
   if (unread === entry.unread) return;
   const prev = entry.unread;
+
+  // Badge persistence: ignore decreases when user is NOT actively viewing this service.
+  // Messenger resets its own title after showing a notification (thinking the user saw it).
+  // We keep the badge alive until the user actually switches to that tab.
+  if (unread < prev && !(active === entry.service.id && win.isFocused())) {
+    dbg(`ofa:title service=${entry.service.id} ignoring decrease ${prev}->${unread} (not active+focused)`);
+    return; // entry.unread stays at prev; badge persists
+  }
+
   entry.unread = unread;
+  dbg(`ofa:title service=${entry.service.id} unread=${prev}->${unread} notifyOnUnread=${entry.service.notifyOnUnread} sawApi=${entry.sawApiNotification}`);
   updateBadge();
 
-  const body = config.unreadDelta({
-    enabled: entry.service.notifyOnUnread,
-    sawApiNotification: entry.sawApiNotification,
-    msSinceLoad: Date.now() - entry.loadedAt,
-  }, prev, unread);
-  if (!body) return;
-  const payload = { title: entry.service.name, body };
-  if (!config.shouldNotify(entry.service, cfg, payload)) return;
-  notify({
-    ...payload,
-    sound: entry.service.sound,
-    serviceId: entry.service.id,
-    onClick: () => {
-      show();
-      switchTo(entry.service.id);
-    },
-  });
+  // Only trigger fallback notification when count goes up.
+  if (!(unread > prev) || !entry.service.notifyOnUnread || entry.sawApiNotification) {
+    if (entry.pendingNotify) { clearTimeout(entry.pendingNotify.timer); entry.pendingNotify = null; }
+    return;
+  }
+
+  // Cooldown: after one notification, suppress further popups for 2 minutes.
+  // This stops the "popup every time you switch apps" loop.
+  // The cooldown is cleared by switchTo() when the user opens this service tab.
+  if (Date.now() < entry.notifyCooldownUntil) {
+    dbg(`ofa:title service=${entry.service.id} in cooldown, badge updated silently`);
+    if (entry.pendingNotify) { clearTimeout(entry.pendingNotify.timer); entry.pendingNotify = null; }
+    return;
+  }
+
+  // Debounce: batch rapid messages (0→1→2) into one popup (e.g. "2 new messages").
+  if (!entry.pendingNotify) entry.pendingNotify = { base: prev };
+  clearTimeout(entry.pendingNotify.timer);
+  entry.pendingNotify.timer = setTimeout(() => {
+    const base = entry.pendingNotify.base;
+    entry.pendingNotify = null;
+    const d = entry.unread - base;
+    dbg(`pendingNotify fired service=${entry.service.id} d=${d} base=${base} current=${entry.unread}`);
+    if (d <= 0 || Date.now() - entry.loadedAt < 10000) return; // settle window
+    const body = `${d} new message${d > 1 ? 's' : ''}`;
+    const payload = { title: entry.service.name, body };
+    if (!config.shouldNotify(entry.service, cfg, payload)) return;
+    notify({
+      ...payload,
+      sound: entry.service.sound,
+      serviceId: entry.service.id,
+      onClick: () => { show(); switchTo(entry.service.id); },
+    });
+    entry.notifyCooldownUntil = Date.now() + 120000; // 2-minute cooldown starts now
+  }, 1500);
 });
 
-ipcMain.on('ofa:select', (_e, id) => switchTo(id));
+ipcMain.on('ofa:select', (_e, id) => {
+  if (setupOpen) closeSetup();
+  switchTo(id);
+});
+ipcMain.on('ofa:history-clear', () => {
+  history.length = 0;
+  renderSetup();
+});
+ipcMain.on('ofa:set-app-mode', (_e, mode) => patchConfig({ appMode: mode }));
+ipcMain.on('ofa:set-ram-opt', (_e, on) => patchConfig({ ramOptimization: !!on }));
+ipcMain.on('ofa:set-idle-sleep', (_e, mins) => patchConfig({ idleSleepMinutes: Number(mins) || 0 }));
 // fs.watch turns every one of these into applyConfig, which re-renders the UI.
 const patchConfig = (patch) => config.save({ ...config.load(), ...patch });
 
 ipcMain.on('ofa:setup-open', () => openSetup('services'));
-ipcMain.on('ofa:setup-page', (_e, page) => { setupPage = page; renderSetup(); });
+ipcMain.on('ofa:settings-open', () => openSetup('settings'));
+ipcMain.on('ofa:history-open', () => openSetup('history'));
+ipcMain.on('ofa:setup-page', (_e, page) => { setupPage = page; renderSetup(); renderTabs(); });
 
 // Skip and Continue do the same thing: the welcome screen is never shown again,
 // and everything on it stays reachable from the tray.
@@ -424,13 +525,22 @@ function checkIdle() {
 
 function renderTabs() {
   if (!tabsView) return;
-  tabsView.webContents.send('ofa:tabs', [...views.values()].map(({ service, unread }) => ({
+  const list = [...views.values()].map(({ service, unread }) => ({
     id: service.id,
     name: service.name,
     unread,
     muted: service.muted,
     active: service.id === active,
-  })));
+  }));
+  const activeEntry = active ? views.get(active) : null;
+  tabsView.webContents.send('ofa:tabs', {
+    list,
+    appMode: cfg.appMode || 'normal',
+    setupOpen: !!setupOpen,
+    setupPage: setupPage || 'services',
+    activeId: active,
+    activeService: activeEntry?.service?.name || '',
+  });
 }
 
 function updateBadge() {
@@ -525,7 +635,9 @@ app.whenReady().then(() => {
     alwaysOnTop: menubar,
   });
   win.on('resize', layout);
-  for (const ev of ['show', 'hide', 'minimize', 'restore']) win.on(ev, updateVisibility);
+  // focus/blur: when user switches to another app, services see visible=false
+  // so they use their own Notification API and we get full message content.
+  for (const ev of ['show', 'hide', 'minimize', 'restore', 'focus', 'blur']) win.on(ev, updateVisibility);
   win.on('close', (e) => {
     // Closing must not quit — the whole point is staying connected in the background.
     if (quitting) return;
@@ -555,7 +667,10 @@ app.whenReady().then(() => {
   tabsView.webContents.loadFile(path.join(__dirname, 'tabs.html'));
   win.contentView.addChildView(tabsView);
 
-  tray = new Tray(nativeImage.createEmpty());
+  const trayIcon = nativeImage.createFromBuffer(trayPng(1));
+  trayIcon.addRepresentation({ scaleFactor: 2, buffer: trayPng(2) });
+  trayIcon.setTemplateImage(true); // black-on-transparent: macOS tints it for light/dark menu bars
+  tray = new Tray(trayIcon);
   tray.setToolTip('one-for-all');
   // In menubar mode the blur handler has already hidden the panel by the time this
   // fires, so treat a click just after a hide as "close", not "open again".

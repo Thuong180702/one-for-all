@@ -25,7 +25,7 @@ const chunk = (type, data) => {
   return Buffer.concat([len, head, crc]);
 };
 
-function png(size) {
+function png(size, mono) {
   const S = 4; // supersample; nothing here is curved enough to need more
   const R = size * 0.22; // corner radius, matching the macOS squircle closely enough
   const rows = [];
@@ -54,11 +54,19 @@ function png(size) {
       const a = inside / n;
       const d = dot / n;
       const o = 1 + x * 4;
-      // blue plate, white dots composited over it
-      row[o] = Math.round(0x0b + (0xff - 0x0b) * d);
-      row[o + 1] = Math.round(0x63 + (0xff - 0x63) * d);
-      row[o + 2] = Math.round(0xce + (0xff - 0xce) * d);
-      row[o + 3] = Math.round(a * 255);
+      if (mono) {
+        // template image for the menu bar: solid black, macOS does the tinting.
+        // Punch the dots out as holes instead of coloring them — a filled
+        // squircle reads as a blob at 16px, the notches make it legible.
+        row[o] = row[o + 1] = row[o + 2] = 0;
+        row[o + 3] = Math.round(a * (1 - d) * 255);
+      } else {
+        // blue plate, white dots composited over it
+        row[o] = Math.round(0x0b + (0xff - 0x0b) * d);
+        row[o + 1] = Math.round(0x63 + (0xff - 0x63) * d);
+        row[o + 2] = Math.round(0xce + (0xff - 0xce) * d);
+        row[o + 3] = Math.round(a * 255);
+      }
     }
     rows.push(row);
   }
@@ -75,6 +83,10 @@ function png(size) {
   ]);
 }
 
+// Menu bar template icon: 16pt/32pt (@2x), black-on-transparent so macOS
+// tints it to match light/dark menu bars automatically.
+const trayPng = (scale = 1) => png(16 * scale, true);
+
 // iconutil wants exactly these names.
 const VARIANTS = [16, 32, 128, 256, 512].flatMap((s) => [
   [`icon_${s}x${s}.png`, s],
@@ -90,7 +102,8 @@ function buildIcns(outFile) {
   fs.rmSync(set, { recursive: true, force: true });
   return outFile;
 }
-module.exports = buildIcns;;
+module.exports = buildIcns;
+module.exports.trayPng = trayPng;
 
 if (require.main === module) {
   // self-check: the PNGs must be real PNGs and iconutil must accept them
