@@ -92,11 +92,6 @@ function simulatePipeline(opts = {}) {
   } = opts;
 
   for (const { prev, unread } of events) {
-    // ── badge persistence ──────────────────────────────────
-    if (unread < prev && !(active === entry.service.id && focused)) {
-      continue; // ignore; badge stays
-    }
-
     entry.unread = unread;
 
     // ── only go up ────────────────────────────────────────
@@ -156,57 +151,15 @@ test('increase always accepted', () => {
   assert.strictEqual(notes.length, 1);
 });
 
-test('decrease ignored when service is not active tab', () => {
+test('decrease correctly updates unread count (e.g. read on phone)', () => {
   const entry = makeEntry();
   entry.unread = 3;
   const timers = makeFakeTimers();
   simulatePipeline({
     entry, timers,
     events: [{ prev: 3, unread: 0 }],
-    active: 'zalo', focused: true, // different tab
   });
-  assert.strictEqual(entry.unread, 3, 'unread must stay at 3');
-});
-
-test('decrease ignored when window not focused even if correct tab', () => {
-  const entry = makeEntry();
-  entry.unread = 5;
-  const timers = makeFakeTimers();
-  simulatePipeline({
-    entry, timers,
-    events: [{ prev: 5, unread: 0 }],
-    active: 'messenger', focused: false,
-  });
-  assert.strictEqual(entry.unread, 5, 'badge must not clear');
-});
-
-test('decrease applied when user IS looking at the service', () => {
-  const entry = makeEntry();
-  entry.unread = 5;
-  const timers = makeFakeTimers();
-  simulatePipeline({
-    entry, timers,
-    events: [{ prev: 5, unread: 2 }],
-    active: 'messenger', focused: true,
-  });
-  assert.strictEqual(entry.unread, 2, 'partial decrease should apply');
-});
-
-test('badge accumulates across multiple increases (persistence)', () => {
-  const entry = makeEntry();
-  const timers = makeFakeTimers();
-  // Three messages arrive; between msg 1 and 2 Messenger tries to reset title
-  simulatePipeline({
-    entry, timers,
-    active: 'zalo', focused: true, // messenger is NOT active
-    events: [
-      { prev: 0, unread: 1 }, // msg 1
-      { prev: 1, unread: 0 }, // Messenger resets its own title → ignored
-      { prev: 0, unread: 1 }, // msg 2 (Messenger shows unread again)
-    ],
-  });
-  // After ignoring the reset, the effective unread for msg2 starts from where we left off
-  assert.ok(entry.unread >= 1, 'badge should not have been wiped');
+  assert.strictEqual(entry.unread, 0, 'unread must decrease to 0 when read on another device');
 });
 
 /* ═══════════════════════════════════════════════════════════

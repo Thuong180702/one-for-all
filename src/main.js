@@ -118,6 +118,11 @@ function switchTo(id) {
     entry.isSleeping = false;
     entry.loadedAt = Date.now();
     entry.view.webContents.loadURL(entry.service.url);
+  } else {
+    // Read current title from webContents and sync unread count badge immediately
+    const title = entry.view.webContents.getTitle();
+    entry.unread = config.parseUnread(title);
+    updateBadge();
   }
 
   active = id;
@@ -365,14 +370,6 @@ ipcMain.on('ofa:title', (e, title) => {
   const unread = config.parseUnread(title);
   if (unread === entry.unread) return;
   const prev = entry.unread;
-
-  // Badge persistence: ignore decreases when user is NOT actively viewing this service.
-  // Messenger resets its own title after showing a notification (thinking the user saw it).
-  // We keep the badge alive until the user actually switches to that tab.
-  if (unread < prev && !(active === entry.service.id && win.isFocused())) {
-    dbg(`ofa:title service=${entry.service.id} ignoring decrease ${prev}->${unread} (not active+focused)`);
-    return; // entry.unread stays at prev; badge persists
-  }
 
   entry.unread = unread;
   dbg(`ofa:title service=${entry.service.id} unread=${prev}->${unread} notifyOnUnread=${entry.service.notifyOnUnread} sawApi=${entry.sawApiNotification}`);
