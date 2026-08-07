@@ -114,4 +114,15 @@ assert.deepStrictEqual(parseCliNotify([`${CLI_NOTIFY}{}`]), {});
 // the CLI and the parser must agree on the token
 assert.ok((CLI_NOTIFY + JSON.stringify({ title: 'x' })).startsWith(CLI_NOTIFY));
 
+// uniqueServiceId & updateService
+const { uniqueServiceId, updateService } = require('../src/config');
+const existingSvcs = [{ id: 'mail-google-com' }, { id: 'mail-google-com-2' }];
+assert.strictEqual(uniqueServiceId(existingSvcs, 'mail-google-com'), 'mail-google-com-3');
+assert.strictEqual(uniqueServiceId(existingSvcs, 'github-com'), 'github-com');
+
+const initialCfg = withDefaults({ services: [{ id: 's1', name: 'S1', muted: false }] });
+const updatedCfg = updateService(initialCfg, 's1', { muted: true, name: 'Service 1' });
+assert.strictEqual(updatedCfg.services[0].muted, true);
+assert.strictEqual(updatedCfg.services[0].name, 'Service 1');
+
 console.log('ok');

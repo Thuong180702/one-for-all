@@ -146,8 +146,31 @@ function parseCliNotify(argv) {
   }
 }
 
+function uniqueServiceId(existingServices, baseId) {
+  let id = baseId;
+  let counter = 1;
+  const existing = new Set((existingServices || []).map((s) => s.id));
+  while (existing.has(id)) {
+    counter++;
+    id = `${baseId}-${counter}`;
+  }
+  return id;
+}
+
+function updateService(cfg, id, patch) {
+  const services = (cfg.services || []).map((s) => {
+    if (s.id !== id) return s;
+    const next = { ...s, ...patch };
+    if (patch.notify) next.notify = { ...s.notify, ...patch.notify };
+    return next;
+  });
+  return { ...cfg, services };
+}
+
 module.exports = {
   CLI_NOTIFY,
   parseCliNotify,
   DIR, FILE, load, save, withDefaults, parseUnread, shouldNotify, isDndActive, unreadDelta,
+  uniqueServiceId, updateService,
 };
+

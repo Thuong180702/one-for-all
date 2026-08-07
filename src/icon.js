@@ -26,42 +26,48 @@ const chunk = (type, data) => {
 };
 
 function png(size, mono) {
-  const S = 4; // supersample; nothing here is curved enough to need more
-  const R = size * 0.22; // corner radius, matching the macOS squircle closely enough
+  const S = 4; // supersample
+  const R = size * 0.22;
+  const Rout = size * 0.42;
+  const Rin = size * 0.25;
+  const cx = size / 2;
+  const cy = size / 2;
   const rows = [];
   for (let y = 0; y < size; y++) {
     const row = Buffer.alloc(1 + size * 4);
     for (let x = 0; x < size; x++) {
       let inside = 0;
       let dot = 0;
+      let insideRing = 0;
       for (let sy = 0; sy < S; sy++) {
         for (let sx = 0; sx < S; sx++) {
           const px = x + (sx + 0.5) / S;
           const py = y + (sy + 0.5) / S;
-          // rounded square
-          const dx = Math.max(R - px, px - (size - R), 0);
-          const dy = Math.max(R - py, py - (size - R), 0);
-          if (dx * dx + dy * dy <= R * R) inside++;
-          // three dots = "you have messages"
-          for (const cx of [0.3, 0.5, 0.7]) {
-            const ddx = px - size * cx;
-            const ddy = py - size * 0.5;
-            if (ddx * ddx + ddy * ddy <= (size * 0.075) ** 2) dot++;
+          if (mono) {
+            const distSq = (px - cx) ** 2 + (py - cy) ** 2;
+            if (distSq <= Rout ** 2 && distSq >= Rin ** 2) insideRing++;
+          } else {
+            const dx = Math.max(R - px, px - (size - R), 0);
+            const dy = Math.max(R - py, py - (size - R), 0);
+            if (dx * dx + dy * dy <= R * R) inside++;
+            for (const cxx of [0.3, 0.5, 0.7]) {
+              const ddx = px - size * cxx;
+              const ddy = py - size * 0.5;
+              if (ddx * ddx + ddy * ddy <= (size * 0.075) ** 2) dot++;
+            }
           }
         }
       }
       const n = S * S;
-      const a = inside / n;
-      const d = dot / n;
       const o = 1 + x * 4;
       if (mono) {
-        // template image for the menu bar: solid black, macOS does the tinting.
-        // Punch the dots out as holes instead of coloring them — a filled
-        // squircle reads as a blob at 16px, the notches make it legible.
+        // template image for the menu bar: solid black circle ring, macOS does the tinting.
+        const ringAlpha = insideRing / n;
         row[o] = row[o + 1] = row[o + 2] = 0;
-        row[o + 3] = Math.round(a * (1 - d) * 255);
+        row[o + 3] = Math.round(ringAlpha * 255);
       } else {
-        // blue plate, white dots composited over it
+        const a = inside / n;
+        const d = dot / n;
         row[o] = Math.round(0x0b + (0xff - 0x0b) * d);
         row[o + 1] = Math.round(0x63 + (0xff - 0x63) * d);
         row[o + 2] = Math.round(0xce + (0xff - 0xce) * d);
@@ -93,11 +99,26 @@ const VARIANTS = [16, 32, 128, 256, 512].flatMap((s) => [
   [`icon_${s}x${s}@2x.png`, s * 2],
 ]);
 
+const LOGO = path.join(__dirname, 'Logo.png');
+
 function buildIcns(outFile) {
   const set = `${outFile}.iconset`;
   fs.rmSync(set, { recursive: true, force: true });
   fs.mkdirSync(set, { recursive: true });
-  for (const [name, size] of VARIANTS) fs.writeFileSync(path.join(set, name), png(size));
+
+  const hasLogo = fs.existsSync(LOGO);
+  for (const [name, size] of VARIANTS) {
+    const target = path.join(set, name);
+    if (hasLogo) {
+      try {
+        execFileSync('sips', ['-z', String(size), String(size), LOGO, '--out', target], { stdio: 'ignore' });
+      } catch {
+        fs.writeFileSync(target, png(size));
+      }
+    } else {
+      fs.writeFileSync(target, png(size));
+    }
+  }
   execFileSync('iconutil', ['-c', 'icns', set, '-o', outFile]);
   fs.rmSync(set, { recursive: true, force: true });
   return outFile;

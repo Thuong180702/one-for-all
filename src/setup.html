@@ -68,10 +68,19 @@
   }
   .step + .step { margin-top: 12px; }
 
-  .row { display: flex; align-items: center; gap: 14px; }
-  .row .text { flex: 1; }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .row .text {
+    flex: 1 1 200px;
+    min-width: 160px;
+  }
   .row .text b { display: block; color: var(--fg); font-weight: 600; font-size: 14px; margin-bottom: 2px; }
-  .row .text span { color: var(--fg-dim); font-size: 12.5px; }
+  .row .text span { color: var(--fg-dim); font-size: 12.5px; line-height: 1.4; }
 
   button {
     display: inline-flex;
@@ -211,20 +220,42 @@
   .status.ok { color: var(--ok); }
   .status.bad { color: var(--bad); }
 
-  form#custom { display: flex; gap: 10px; margin-top: 14px; }
-  input[type="url"] {
-    flex: 1;
-    padding: 9px 12px;
+  form#custom {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 18px;
+    padding: 16px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+  input[type="text"], input[type="url"] {
+    padding: 9px 13px;
     border: 1px solid var(--line);
     border-radius: 8px;
-    background: var(--card);
+    background: var(--bg);
     color: var(--fg);
     font: inherit;
     font-size: 13px;
     outline: none;
     user-select: text;
+    transition: all 0.15s ease;
   }
-  input[type="url"]:focus { border-color: var(--accent); }
+  input[type="text"]:focus, input[type="url"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+  }
+  #custom-name {
+    width: 170px;
+    flex-shrink: 0;
+  }
+  #url {
+    flex: 1;
+    min-width: 180px;
+  }
 
   .foot { margin-top: 28px; display: flex; align-items: center; gap: 14px; }
   .hint { font-size: 12px; color: var(--fg-dim); }
@@ -263,8 +294,13 @@
   <div class="wrap">
     <!-- page 1: permissions -->
     <section id="welcome" hidden>
-      <h1>Welcome to one-for-all</h1>
-      <p>Configure notification permissions and startup settings for your macOS experience.</p>
+      <div style="display:flex; align-items:center; gap:16px; margin-bottom:18px;">
+        <img id="app-logo-img" src="Logo.png" alt="one-for-all logo" style="width:54px; height:54px; border-radius:14px; object-fit:contain; box-shadow: var(--shadow);" />
+        <div>
+          <h1 style="margin:0;">Welcome to one-for-all</h1>
+          <p style="margin:4px 0 0;">All-in-one native macOS Notification Hub</p>
+        </div>
+      </div>
 
       <div class="step">
         <div class="row">
@@ -312,12 +348,17 @@
       <div class="grid" id="grid"></div>
 
       <form id="custom">
-        <input id="url" type="url" placeholder="https://… any custom web app URL" />
-        <button class="primary">Add Web App</button>
+        <div style="font-weight: 600; font-size: 13.5px; width: 100%; color: var(--fg); margin-bottom: 2px;">➕ Add Custom Web App</div>
+        <input id="custom-name" type="text" placeholder="App Name (e.g. ChatGPT)" />
+        <input id="url" type="url" placeholder="https://chat.openai.com/..." required />
+        <button class="primary" type="submit">Add Web App</button>
       </form>
       <p class="hint" style="margin-top:10px">
         Log in once inside the tab — your session and cookies are saved automatically.
       </p>
+
+      <h2>Active Service Settings</h2>
+      <div id="managed-services-list" style="display:flex; flex-direction:column; gap:10px;"></div>
 
       <div class="foot">
         <button id="done" class="primary" hidden>Done</button>
@@ -338,7 +379,7 @@
             <b>Notifications Permission</b>
             <span>macOS asks once to send banner notifications. Without it, messages arrive silently without popups.</span>
           </div>
-          <button class="primary" id="settings-allow">Allow / Test</button>
+          <button class="primary" id="settings-allow">Allow Notifications</button>
           <span class="done" id="settings-allow-done" hidden>✓ Allowed</span>
         </div>
         <p class="status" id="settings-allow-status" hidden></p>
@@ -349,7 +390,7 @@
         </p>
       </div>
 
-      <h2>Operating Mode</h2>
+      <h2>Operating & Window Mode</h2>
       <div class="step">
         <div class="row">
           <div class="text">
@@ -359,6 +400,31 @@
           <button id="mode-normal" class="primary">Normal Mode</button>
           <button id="mode-minimal">Minimal Mode</button>
         </div>
+      </div>
+
+      <div class="step">
+        <div class="row">
+          <div class="text">
+            <b>Window Mode</b>
+            <span>Standard: Resizable desktop window. Menu Bar: Frameless panel anchored to Mac status bar.</span>
+          </div>
+          <button id="winmode-window" class="primary">Standard Window</button>
+          <button id="winmode-menubar">Menu Bar Panel</button>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="row">
+          <div class="text">
+            <b>Global Toggle Hotkey</b>
+            <span>Hotkey combination to quickly show or hide the application window (e.g. Cmd+Shift+Space, Alt+Space, Cmd+Alt+M).</span>
+          </div>
+          <form id="shortcut-form" style="display:inline-flex; align-items:center; gap:6px; margin:0;">
+            <input id="shortcut-input" type="text" placeholder="Cmd+Shift+Space" style="width: 160px; font-weight:600; text-align:center;" />
+            <button class="primary" type="submit">Save Key</button>
+          </form>
+        </div>
+        <p class="status" id="shortcut-status" hidden></p>
       </div>
 
       <h2>Performance & Idle Sleep</h2>
@@ -416,6 +482,13 @@
       <h1>Notification History</h1>
       <p>Recent notifications captured across all active services.</p>
 
+      <div class="search-box" style="display:flex; gap:10px;">
+        <input id="history-search" type="text" placeholder="🔍 Search history title or body..." style="flex:1;" />
+        <select id="history-filter-svc" style="padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); font: inherit; font-size: 13px;">
+          <option value="">All Services</option>
+        </select>
+      </div>
+
       <div id="history-list"></div>
 
       <div class="foot">
@@ -431,6 +504,10 @@
   let currentPresets = [];
   let currentServices = [];
   let searchQuery = '';
+
+  let currentHistory = [];
+  let historySearch = '';
+  let historyFilterSvc = '';
 
   /* ------------------------------------------------------------ permissions */
   // The welcome page and the settings page each have their own copy of the
@@ -478,9 +555,11 @@
   $('custom').onsubmit = (e) => {
     e.preventDefault();
     const url = $('url').value.trim();
+    const name = $('custom-name').value.trim();
     if (!url) return;
-    window.__setup.add({ url });
+    window.__setup.add({ url, name });
     $('url').value = '';
+    $('custom-name').value = '';
   };
 
   $('done').onclick = () => window.__setup.close();
@@ -491,10 +570,36 @@
 
   $('mode-normal').onclick = () => window.__setup.setAppMode('normal');
   $('mode-minimal').onclick = () => window.__setup.setAppMode('minimal');
+  $('winmode-window').onclick = () => window.__setup.setWindowMode('window');
+  $('winmode-menubar').onclick = () => window.__setup.setWindowMode('menubar');
   $('ram-toggle').onclick = () => {
     const current = $('ram-toggle').dataset.enabled === 'true';
     window.__setup.setRamOptimization(!current);
   };
+
+  // Custom Global Shortcut form
+  if ($('shortcut-form')) {
+    $('shortcut-form').onsubmit = (e) => {
+      e.preventDefault();
+      const val = $('shortcut-input').value.trim();
+      if (!val) return;
+      window.__setup.setGlobalShortcut(val);
+    };
+  }
+  if (window.__setup.onShortcutResult) {
+    window.__setup.onShortcutResult(({ ok, err, shortcut }) => {
+      const el = $('shortcut-status');
+      if (!el) return;
+      el.hidden = false;
+      if (ok) {
+        el.className = 'status ok';
+        el.textContent = `✓ Global hotkey updated to "${shortcut}"`;
+      } else {
+        el.className = 'status bad';
+        el.textContent = `❌ ${err || 'Invalid or busy shortcut key combination'}`;
+      }
+    });
+  }
 
   // Idle Sleep Preset buttons
   document.querySelectorAll('.idle-btn').forEach((btn) => {
@@ -510,6 +615,16 @@
     const val = Number($('custom-idle-input').value);
     if (isNaN(val) || val < 1) return;
     window.__setup.setIdleSleepMinutes(val);
+  };
+
+  // History search and filter
+  $('history-search').oninput = (e) => {
+    historySearch = e.target.value.trim().toLowerCase();
+    renderHistory();
+  };
+  $('history-filter-svc').onchange = (e) => {
+    historyFilterSvc = e.target.value;
+    renderHistory();
   };
 
   function renderGrid() {
@@ -565,6 +680,81 @@
     }
   }
 
+  function renderManagedServices() {
+    const container = $('managed-services-list');
+    if (!container) return;
+    container.textContent = '';
+
+    if (!currentServices.length) {
+      const empty = document.createElement('p');
+      empty.className = 'hint';
+      empty.textContent = 'No active services configured yet.';
+      container.append(empty);
+      return;
+    }
+
+    for (const s of currentServices) {
+      const card = document.createElement('div');
+      card.className = 'step';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.gap = '10px';
+
+      const topRow = document.createElement('div');
+      topRow.className = 'row';
+
+      const img = document.createElement('img');
+      img.className = 'tile-icon';
+      img.src = s.icon || genericIcon;
+      img.onerror = () => { img.src = genericIcon; };
+
+      const text = document.createElement('div');
+      text.className = 'text';
+      const b = document.createElement('b');
+      b.textContent = s.name;
+      const urlSpan = document.createElement('span');
+      urlSpan.textContent = s.url || '';
+      text.append(b, urlSpan);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'danger';
+      removeBtn.textContent = 'Remove';
+      removeBtn.onclick = () => window.__setup.remove(s.id);
+
+      topRow.append(img, text, removeBtn);
+
+      // Controls row
+      const ctrls = document.createElement('div');
+      ctrls.style.display = 'flex';
+      ctrls.style.flexWrap = 'wrap';
+      ctrls.style.gap = '8px';
+      ctrls.style.alignItems = 'center';
+      ctrls.style.marginTop = '4px';
+
+      // Mute Toggle
+      const muteBtn = document.createElement('button');
+      muteBtn.className = s.muted ? 'danger' : 'primary';
+      muteBtn.textContent = s.muted ? '🔇 Muted' : '🔊 Sound Active';
+      muteBtn.onclick = () => window.__setup.updateService(s.id, { muted: !s.muted });
+
+      // Badge Toggle
+      const badgeBtn = document.createElement('button');
+      badgeBtn.className = s.badge !== false ? 'primary' : '';
+      badgeBtn.textContent = s.badge !== false ? '🏷️ Badge: ON' : '🏷️ Badge: OFF';
+      badgeBtn.onclick = () => window.__setup.updateService(s.id, { badge: s.badge === false });
+
+      // Title Fallback Toggle
+      const fallbackBtn = document.createElement('button');
+      fallbackBtn.className = s.notifyOnUnread ? 'primary' : '';
+      fallbackBtn.textContent = s.notifyOnUnread ? '🔔 Title Fallback: ON' : '🔔 Title Fallback: OFF';
+      fallbackBtn.onclick = () => window.__setup.updateService(s.id, { notifyOnUnread: !s.notifyOnUnread });
+
+      ctrls.append(muteBtn, badgeBtn, fallbackBtn);
+      card.append(topRow, ctrls);
+      container.append(card);
+    }
+  }
+
   function formatTime(timestamp) {
     if (!timestamp) return '';
     const diff = Math.floor((Date.now() - timestamp) / 1000);
@@ -574,10 +764,80 @@
     return new Date(timestamp).toLocaleDateString();
   }
 
+  function renderHistory() {
+    const listEl = $('history-list');
+    listEl.textContent = '';
+    const items = currentHistory || [];
+
+    const filtered = items.filter((item) => {
+      if (historyFilterSvc && item.serviceId !== historyFilterSvc) return false;
+      if (historySearch) {
+        const text = `${item.title || ''} ${item.body || ''} ${item.serviceName || ''}`.toLowerCase();
+        if (!text.includes(historySearch)) return false;
+      }
+      return true;
+    });
+
+    if (!filtered.length) {
+      const empty = document.createElement('p');
+      empty.className = 'hint';
+      empty.textContent = items.length ? 'No matching notifications found.' : 'No notifications received yet.';
+      listEl.append(empty);
+      return;
+    }
+
+    for (const item of filtered) {
+      const card = document.createElement('div');
+      card.className = 'history-card';
+
+      const img = document.createElement('img');
+      img.className = 'history-icon';
+      img.src = item.serviceIcon || genericIcon;
+      img.onerror = () => { img.src = genericIcon; };
+
+      const content = document.createElement('div');
+      content.className = 'history-content';
+
+      const header = document.createElement('div');
+      header.className = 'history-header';
+
+      const title = document.createElement('span');
+      title.className = 'history-title';
+      title.textContent = item.title || 'Notification';
+
+      const time = document.createElement('span');
+      time.className = 'history-time';
+      time.textContent = formatTime(item.at);
+
+      header.append(title, time);
+
+      const body = document.createElement('div');
+      body.className = 'history-body';
+      body.textContent = item.body || '';
+
+      content.append(header, body);
+
+      if (item.serviceId) {
+        const action = document.createElement('div');
+        action.className = 'history-action';
+        const openBtn = document.createElement('button');
+        openBtn.className = 'primary';
+        openBtn.textContent = 'Open Service';
+        openBtn.onclick = () => window.__setup.select(item.serviceId);
+        action.append(openBtn);
+        content.append(action);
+      }
+
+      card.append(img, content);
+      listEl.append(card);
+    }
+  }
+
   /* ------------------------------------------------------------------ state */
-  window.__setup.onState(({ page, presets, services, canClose, notificationsOk, openAtLogin, appMode, ramOptimization, idleSleepMinutes, history, genericIcon: gi }) => {
+  window.__setup.onState(({ page, presets, services, canClose, notificationsOk, openAtLogin, appMode, windowMode, globalShortcut, ramOptimization, idleSleepMinutes, history, genericIcon: gi }) => {
     currentPresets = presets || [];
     currentServices = services || [];
+    currentHistory = history || [];
     genericIcon = gi || genericIcon;
 
     $('welcome').hidden = page !== 'welcome';
@@ -598,6 +858,15 @@
     const isMinimal = appMode === 'minimal';
     $('mode-normal').className = isMinimal ? '' : 'primary';
     $('mode-minimal').className = isMinimal ? 'primary' : '';
+
+    // Window Mode buttons
+    const isMenubar = windowMode === 'menubar';
+    if ($('winmode-window')) $('winmode-window').className = isMenubar ? '' : 'primary';
+    if ($('winmode-menubar')) $('winmode-menubar').className = isMenubar ? 'primary' : '';
+
+    if ($('shortcut-input') && globalShortcut && document.activeElement !== $('shortcut-input')) {
+      $('shortcut-input').value = globalShortcut;
+    }
 
     // RAM toggle
     const ramOpt = ramOptimization !== false;
@@ -625,69 +894,34 @@
       $('idle-status').textContent = `⚡ Status: Auto-sleep unloads RAM after ${mins} minutes of inactivity`;
     }
 
-    // Render Grid
+    // Populate history service filter dropdown
+    const select = $('history-filter-svc');
+    if (select) {
+      const currentVal = select.value;
+      select.textContent = '';
+      const allOpt = document.createElement('option');
+      allOpt.value = '';
+      allOpt.textContent = 'All Services';
+      select.append(allOpt);
+      for (const s of currentServices) {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        select.append(opt);
+      }
+      select.value = currentVal;
+    }
+
+    // Render Grid & Active Services
     renderGrid();
+    renderManagedServices();
     $('done').hidden = !canClose;
     $('tally').textContent = currentServices.length
       ? `${currentServices.length} service${currentServices.length > 1 ? 's' : ''} added`
       : 'Pick a service to start.';
 
     // Render Notification History
-    const listEl = $('history-list');
-    listEl.textContent = '';
-    const items = history || [];
-    if (!items.length) {
-      const empty = document.createElement('p');
-      empty.className = 'hint';
-      empty.textContent = 'No notifications received yet.';
-      listEl.append(empty);
-    } else {
-      for (const item of items) {
-        const card = document.createElement('div');
-        card.className = 'history-card';
-
-        const img = document.createElement('img');
-        img.className = 'history-icon';
-        img.src = item.serviceIcon || genericIcon;
-        img.onerror = () => { img.src = genericIcon; };
-
-        const content = document.createElement('div');
-        content.className = 'history-content';
-
-        const header = document.createElement('div');
-        header.className = 'history-header';
-
-        const title = document.createElement('span');
-        title.className = 'history-title';
-        title.textContent = item.title || 'Notification';
-
-        const time = document.createElement('span');
-        time.className = 'history-time';
-        time.textContent = formatTime(item.at);
-
-        header.append(title, time);
-
-        const body = document.createElement('div');
-        body.className = 'history-body';
-        body.textContent = item.body || '';
-
-        content.append(header, body);
-
-        if (item.serviceId) {
-          const action = document.createElement('div');
-          action.className = 'history-action';
-          const openBtn = document.createElement('button');
-          openBtn.className = 'primary';
-          openBtn.textContent = 'Open Service';
-          openBtn.onclick = () => window.__setup.select(item.serviceId);
-          action.append(openBtn);
-          content.append(action);
-        }
-
-        card.append(img, content);
-        listEl.append(card);
-      }
-    }
+    renderHistory();
   });
 </script>
 </body>

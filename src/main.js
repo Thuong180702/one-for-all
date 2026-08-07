@@ -223,10 +223,15 @@ function renderSetup() {
   setupView.webContents.send('ofa:setup', {
     page: setupPage,
     presets: Object.entries(presets).map(([id, p]) => ({ id, name: p.name, icon: p.icon || getFaviconUrl(p.url) || DATA_URIS.generic })),
-    services: cfg.services.map((s) => ({ id: s.id, name: s.name, icon: s.icon || presets[s.id]?.icon || getFaviconUrl(s.url) || DATA_URIS.generic })),
+    services: cfg.services.map((s) => ({
+      ...s,
+      icon: s.icon || presets[s.id]?.icon || getFaviconUrl(s.url) || DATA_URIS.generic,
+    })),
     canClose: views.size > 0,
     notificationsOk: !!cfg.notificationsOk,
     appMode: cfg.appMode || 'normal',
+    windowMode: cfg.windowMode || 'window',
+    globalShortcut: cfg.globalShortcut || 'Cmd+Shift+Space',
     ramOptimization: cfg.ramOptimization !== false,
     idleSleepMinutes: cfg.idleSleepMinutes || 0,
     history: history.slice(0, 50),
@@ -323,13 +328,16 @@ function retain(n) {
 
 function notify({ title, body, sound, serviceId, onClick }) {
   dbg(`notify() called title="${title}" body="${body}" serviceId=${serviceId}`);
+  const entrySvc = serviceId ? views.get(serviceId)?.service : null;
+  const icon = entrySvc?.icon || (serviceId ? presets[serviceId]?.icon : null) || (serviceId ? DATA_URIS[serviceId] : null) || DATA_URIS.generic;
+  const serviceName = entrySvc?.name || (serviceId ? presets[serviceId]?.name : null) || '';
+
   if (cfg.history) {
-    const entrySvc = views.get(serviceId)?.service;
     history.unshift({
       at: Date.now(),
       serviceId,
-      serviceName: entrySvc?.name || 'Notification',
-      serviceIcon: entrySvc?.icon || presets[serviceId]?.icon || DATA_URIS.generic,
+      serviceName: serviceName || 'Notification',
+      serviceIcon: icon,
       title,
       body,
     });
@@ -337,12 +345,12 @@ function notify({ title, body, sound, serviceId, onClick }) {
   }
   const n = retain(new Notification({
     title,
-    subtitle: views.get(serviceId)?.service.name || '',
+    subtitle: serviceName,
     body: body || '',
     silent: sound === null,
     ...(sound && sound !== 'default' ? { sound } : {}),
   }));
-  n.on('show', () => dbg(`notification SHOWN title="${title}"}`));
+  n.on('show', () => dbg(`notification SHOWN title="${title}"`));
   n.on('click', onClick);
   n.on('failed', (_e, err) => {
     dbg(`notification FAILED title="${title}" err=${err}`);
@@ -448,7 +456,10 @@ ipcMain.on('ofa:set-app-mode', (_e, mode) => patchConfig({ appMode: mode }));
 ipcMain.on('ofa:set-ram-opt', (_e, on) => patchConfig({ ramOptimization: !!on }));
 ipcMain.on('ofa:set-idle-sleep', (_e, mins) => patchConfig({ idleSleepMinutes: Number(mins) || 0 }));
 // fs.watch turns every one of these into applyConfig, which re-renders the UI.
-const patchConfig = (patch) => config.save({ ...config.load(), ...patch });
+const patchConfig = (patch) => {
+  cfg = config.withDefaults({ ...cfg, ...patch });
+  config.save(cfg);
+};
 
 ipcMain.on('ofa:open-page', (_e, page) => openSetup(page));
 ipcMain.on('ofa:setup-page', (_e, page) => { setupPage = page; renderSetup(); renderTabs(); });
@@ -473,6 +484,7 @@ ipcMain.on('ofa:setup-close', closeSetup);
 
 ipcMain.on('ofa:add', (_e, what) => {
   const preset = presets[what.preset];
+  const next = config.load();
   let service;
   if (preset) {
     service = { id: what.preset, ...preset };
@@ -484,18 +496,150 @@ ipcMain.on('ofa:add', (_e, what) => {
       return; // the input is type=url, but never trust the renderer
     }
     if (!/^https?:$/.test(url.protocol)) return;
+    const baseId = url.hostname.toLowerCase().replace(/\W+/g, '-');
+    const uniqueId = config.uniqueServiceId(next.services, baseId);
     service = {
-      id: url.hostname.toLowerCase().replace(/\W+/g, '-'),
-      name: url.hostname,
+      id: uniqueId,
+      name: (what.name && what.name.trim()) || url.hostname,
       url: url.href,
       icon: getFaviconUrl(url.href),
     };
   }
-  const next = config.load();
   if (next.services.some((s) => s.id === service.id)) return;
   next.services.push(service);
   pendingLogin = service.id;
   config.save(config.withDefaults(next)); // fs.watch turns this into applyConfig
+});
+
+ipcMain.on('ofa:update-service', (_e, { id, patch }) => {
+  const current = config.load();
+  const next = config.updateService(current, id, patch);
+  config.save(next);
+});
+
+function registerGlobalShortcut(shortcut) {
+  globalShortcut.unregisterAll();
+  if (!shortcut || !shortcut.trim()) return true;
+  try {
+    return globalShortcut.register(shortcut.trim(), () => (win && win.isVisible() ? win.hide() : show()));
+  } catch {
+    return false;
+  }
+}
+
+function recreateWindow() {
+  if (!win) return;
+  const menubar = isMenubar();
+  const oldWin = win;
+  
+  win = new BaseWindow({
+    width: menubar ? 420 : 1100,
+    height: menubar ? 620 : 780,
+    show: false,
+    title: 'one-for-all',
+    frame: !menubar,
+    alwaysOnTop: menubar,
+  });
+
+  win.on('resize', layout);
+  for (const ev of ['show', 'hide', 'minimize', 'restore', 'focus', 'blur']) win.on(ev, updateVisibility);
+  win.on('close', (e) => {
+    if (quitting) return;
+    e.preventDefault();
+    win.hide();
+  });
+
+  let hiddenAt = 0;
+  win.on('hide', () => { hiddenAt = Date.now(); });
+  if (tray) {
+    tray.removeAllListeners('click');
+    tray.on('click', () => {
+      if (win.isVisible() || Date.now() - hiddenAt < 250) win.hide();
+      else show();
+    });
+  }
+
+  if (menubar) {
+    if (app.dock) app.dock.hide();
+    win.on('blur', () => {
+      if (![...views.values()].some((v) => v.view.webContents.isDevToolsOpened())) win.hide();
+    });
+  } else {
+    if (app.dock) app.dock.show();
+  }
+
+  if (tabsView) win.contentView.addChildView(tabsView);
+  if (setupOpen && setupView) win.contentView.addChildView(setupView);
+  if (active && views.has(active)) {
+    const entry = views.get(active);
+    win.contentView.addChildView(entry.view);
+    entry.view.setVisible(true);
+  }
+
+  try { oldWin.destroy(); } catch {}
+  layout();
+  show();
+  renderTabs();
+  renderSetup();
+  buildAppMenu();
+}
+
+ipcMain.on('ofa:set-window-mode', (_e, mode) => {
+  if (mode !== 'window' && mode !== 'menubar') return;
+  if (cfg.windowMode === mode) return;
+  patchConfig({ windowMode: mode });
+  recreateWindow();
+});
+
+ipcMain.on('ofa:set-global-shortcut', (e, shortcut) => {
+  const reply = (res) => !e.sender.isDestroyed() && e.sender.send('ofa:shortcut-result', res);
+  const ok = registerGlobalShortcut(shortcut);
+  if (ok) {
+    patchConfig({ globalShortcut: shortcut });
+    reply({ ok: true, shortcut });
+  } else {
+    registerGlobalShortcut(cfg.globalShortcut);
+    reply({ ok: false, err: 'Invalid key combination' });
+  }
+});
+
+ipcMain.on('ofa:tab-context-menu', (_e, id) => {
+  const entry = views.get(id);
+  if (!entry) return;
+  const { service } = entry;
+  const menu = Menu.buildFromTemplate([
+    { label: service.name, enabled: false },
+    { type: 'separator' },
+    {
+      label: service.muted ? '🔊 Unmute Notifications' : '🔇 Mute Notifications',
+      click: () => {
+        const current = config.load();
+        const next = config.updateService(current, id, { muted: !service.muted });
+        config.save(next);
+      },
+    },
+    {
+      label: '🔄 Reload Service',
+      click: () => entry.view.webContents.reload(),
+    },
+    {
+      label: '⚙️ Service Settings',
+      click: () => {
+        show();
+        openSetup('services');
+      },
+    },
+    { type: 'separator' },
+    {
+      label: '❌ Remove Service',
+      click: () => {
+        const next = config.load();
+        next.services = next.services.filter((s) => s.id !== id);
+        config.save(next);
+      },
+    },
+  ]);
+  menu.popup();
 });
 
 ipcMain.on('ofa:remove', (_e, id) => {
@@ -515,6 +659,45 @@ ipcMain.on('ofa:test-notification', (e) => {
   });
   n.on('failed', (_ev, err) => reply({ ok: false, err: String(err) }));
   n.show();
+});
+
+ipcMain.on('ofa:test-simulated-notification', (_e, { count = 5 } = {}) => {
+  const firstEntry = views.values().next().value;
+  if (firstEntry) {
+    firstEntry.unread = count;
+    updateBadge();
+  }
+
+  const testItems = [
+    { title: 'Messenger • Alice Nguyen', body: 'Hey, meet me at the coffee shop at 2 PM! ☕' },
+    { title: 'Zalo • Công việc', body: 'Báo cáo tuần đã được phê duyệt 🚀' },
+    { title: 'Gmail • Security Alert', body: 'New login detected from macOS Device 🛡️' },
+    { title: 'Slack • Dev Team', body: 'Deployment build #142 succeeded on main branch ✅' },
+    { title: 'Telegram • Bob Tran', body: 'Can you check the design file I sent? 🎨' },
+  ];
+
+  const itemsToSend = testItems.slice(0, count);
+  itemsToSend.forEach((item, i) => {
+    setTimeout(() => {
+      notify({
+        title: item.title,
+        body: item.body,
+        serviceId: firstEntry?.service?.id || null,
+        onClick: () => {
+          show();
+          if (firstEntry) switchTo(firstEntry.service.id);
+        },
+      });
+    }, i * 600);
+  });
+});
+
+ipcMain.on('ofa:set-unread-count', (_e, count) => {
+  const firstEntry = views.values().next().value;
+  if (firstEntry) {
+    firstEntry.unread = Math.max(0, Number(count) || 0);
+    updateBadge();
+  }
 });
 
 // `ofa notify ...` relaunches the app; the running instance picks the payload out of argv.
@@ -634,6 +817,18 @@ function buildTrayMenu() {
   }
 }
 
+function cycleTab(dir = 1) {
+  const keys = [...views.keys()];
+  if (!keys.length) return;
+  const idx = keys.indexOf(active);
+  if (idx === -1) {
+    switchTo(keys[0]);
+    return;
+  }
+  const nextIdx = (idx + dir + keys.length) % keys.length;
+  switchTo(keys[nextIdx]);
+}
+
 function buildAppMenu() {
   const jump = [...views.keys()].slice(0, 9).map((id, i) => ({
     label: views.get(id).service.name,
@@ -641,12 +836,30 @@ function buildAppMenu() {
     click: () => switchTo(id),
   }));
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { role: 'appMenu' },
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { label: 'Preferences…', accelerator: 'Cmd+,', click: () => { show(); openSetup('settings'); } },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
     { role: 'editMenu' }, // copy/paste inside the web views needs this
     {
       label: 'Service',
       submenu: [
         ...jump,
+        { type: 'separator' },
+        { label: 'Next Service', accelerator: 'Control+Tab', click: () => cycleTab(1) },
+        { label: 'Previous Service', accelerator: 'Control+Shift+Tab', click: () => cycleTab(-1) },
         { type: 'separator' },
         { label: 'Reload', accelerator: 'Cmd+R', click: () => views.get(active)?.view.webContents.reload() },
         { label: 'Reload All', accelerator: 'Cmd+Shift+R', click: reloadAll },
@@ -663,7 +876,16 @@ function buildAppMenu() {
         },
       ],
     },
-    { role: 'windowMenu' },
+    {
+      label: 'Window',
+      submenu: [
+        { label: 'Close Window', accelerator: 'Cmd+W', click: () => win.hide() },
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { type: 'separator' },
+        { role: 'front' },
+      ],
+    },
   ]));
 }
 

@@ -198,7 +198,7 @@
           const btn = document.createElement('button');
           btn.ariaSelected = String(!isSetupOpen && s.active);
           if (s.muted) btn.classList.add('muted');
-          btn.title = s.name;
+          btn.title = s.muted ? `${s.name} (Muted)` : s.name;
 
           // Service Icon
           const img = document.createElement('img');
@@ -213,6 +213,13 @@
           nameSpan.textContent = s.name;
           btn.append(nameSpan);
 
+          if (s.muted) {
+            const muteBadge = document.createElement('span');
+            muteBadge.style.fontSize = '11px';
+            muteBadge.textContent = '🔇';
+            btn.append(muteBadge);
+          }
+
           // Unread Count Badge
           if (s.unread) {
             const badge = document.createElement('span');
@@ -222,6 +229,10 @@
           }
 
           btn.onclick = () => window.__tabs.select(s.id);
+          btn.oncontextmenu = (e) => {
+            e.preventDefault();
+            if (window.__tabs.contextMenu) window.__tabs.contextMenu(s.id);
+          };
           container.append(btn);
         }
       }

@@ -90,9 +90,25 @@ function getFaviconUrl(target) {
   }
 }
 
+const fs = require('fs');
+const path = require('path');
+
+const LOGO_PATH = path.join(__dirname, 'Logo.png');
+let logoDataUri = null;
+try {
+  if (fs.existsSync(LOGO_PATH)) {
+    logoDataUri = `data:image/png;base64,${fs.readFileSync(LOGO_PATH).toString('base64')}`;
+  }
+} catch {}
+
 const DATA_URIS = {};
 for (const key in SVG_ICONS) {
   DATA_URIS[key] = getSvgDataUri(SVG_ICONS[key]);
+}
+
+if (logoDataUri) {
+  DATA_URIS.generic = logoDataUri;
+  DATA_URIS.logo = logoDataUri;
 }
 
 module.exports = {
