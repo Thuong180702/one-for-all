@@ -88,6 +88,21 @@ redeploys.
 
 ## Install
 
+### Via Homebrew (Recommended)
+
+```bash
+brew install --cask https://raw.githubusercontent.com/Thuong180702/one-for-all/main/Casks/one-for-all.rb
+```
+
+Or tap the repository:
+
+```bash
+brew tap Thuong180702/one-for-all https://github.com/Thuong180702/one-for-all
+brew install --cask one-for-all
+```
+
+### From Source
+
 ```bash
 git clone https://github.com/Thuong180702/one-for-all && cd one-for-all
 npm install && npm run build
