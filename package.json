@@ -1,6 +1,6 @@
 {
   "name": "notihub",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "⚡ All-in-one native macOS notification hub for web apps (Messenger, Zalo, Gmail, Telegram, Slack & custom web apps) with glassmorphic UI, real web favicons, and smart RAM optimization.",
   "license": "MIT",
   "main": "src/main.js",
