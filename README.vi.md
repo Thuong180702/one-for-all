@@ -68,7 +68,7 @@ brew install --cask one-for-all
 
 ### Cách 2: Tải Trực Tiếp Bản Build `.app`
 
-1. Tải bản nén mới nhất **`one-for-all-v0.7.0-mac.zip`** từ [GitHub Releases](https://github.com/Thuong180702/one-for-all/releases).
+1. Tải bản nén mới nhất từ [GitHub Latest Releases](https://github.com/Thuong180702/one-for-all/releases/latest).
 2. Giải nén và kéo file `one-for-all.app` vào thư mục `/Applications`.
 
 ### Cách 3: Biên Dịch Từ Mã Nguồn (Source)

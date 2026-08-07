@@ -68,7 +68,7 @@ brew install --cask one-for-all
 
 ### Method 2: Direct App Download
 
-1. Download the latest **`one-for-all-v0.8.0-mac.zip`** from [GitHub Releases](https://github.com/Thuong180702/one-for-all/releases).
+1. Download the latest release package from [GitHub Latest Releases](https://github.com/Thuong180702/one-for-all/releases/latest).
 2. Unzip and drag `one-for-all.app` into your `/Applications` directory.
 
 ### Method 3: Build from Source
