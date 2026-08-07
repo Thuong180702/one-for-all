@@ -77,9 +77,26 @@ function getSvgDataUri(svgString) {
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgString.replace(/\n/g, '').trim());
 }
 
+function getFaviconUrl(target) {
+  if (!target) return null;
+  try {
+    let hostname = target;
+    if (target.startsWith('http://') || target.startsWith('https://')) {
+      hostname = new URL(target).hostname;
+    }
+    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`;
+  } catch {
+    return null;
+  }
+}
+
 const DATA_URIS = {};
 for (const key in SVG_ICONS) {
   DATA_URIS[key] = getSvgDataUri(SVG_ICONS[key]);
 }
 
-module.exports = { DATA_URIS };
+module.exports = {
+  SVG_ICONS,
+  DATA_URIS,
+  getFaviconUrl,
+};

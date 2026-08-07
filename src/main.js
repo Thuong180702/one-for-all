@@ -7,7 +7,7 @@ const path = require('path');
 const config = require('./config');
 const presets = require('./presets');
 const { trayPng } = require('./icon');
-const { DATA_URIS } = require('./icons');
+const { DATA_URIS, getFaviconUrl } = require('./icons');
 
 // app.quit() is async — without the early return, this whole module keeps
 // running (and re-registering its own will-quit handler) in the losing instance.
@@ -222,8 +222,8 @@ function renderSetup() {
   if (!setupView) return;
   setupView.webContents.send('ofa:setup', {
     page: setupPage,
-    presets: Object.entries(presets).map(([id, p]) => ({ id, name: p.name, icon: p.icon || DATA_URIS.generic })),
-    services: cfg.services.map((s) => ({ id: s.id, name: s.name, icon: s.icon || presets[s.id]?.icon || DATA_URIS.generic })),
+    presets: Object.entries(presets).map(([id, p]) => ({ id, name: p.name, icon: p.icon || getFaviconUrl(p.url) || DATA_URIS.generic })),
+    services: cfg.services.map((s) => ({ id: s.id, name: s.name, icon: s.icon || presets[s.id]?.icon || getFaviconUrl(s.url) || DATA_URIS.generic })),
     canClose: views.size > 0,
     notificationsOk: !!cfg.notificationsOk,
     appMode: cfg.appMode || 'normal',
@@ -484,7 +484,12 @@ ipcMain.on('ofa:add', (_e, what) => {
       return; // the input is type=url, but never trust the renderer
     }
     if (!/^https?:$/.test(url.protocol)) return;
-    service = { id: url.hostname.toLowerCase().replace(/\W+/g, '-'), name: url.hostname, url: url.href };
+    service = {
+      id: url.hostname.toLowerCase().replace(/\W+/g, '-'),
+      name: url.hostname,
+      url: url.href,
+      icon: getFaviconUrl(url.href),
+    };
   }
   const next = config.load();
   if (next.services.some((s) => s.id === service.id)) return;
@@ -560,7 +565,7 @@ function renderTabs() {
   const list = [...views.values()].map(({ service, unread }) => ({
     id: service.id,
     name: service.name,
-    icon: service.icon || presets[service.id]?.icon || DATA_URIS.generic,
+    icon: service.icon || presets[service.id]?.icon || getFaviconUrl(service.url) || DATA_URIS.generic,
     unread,
     muted: service.muted,
     active: service.id === active,
