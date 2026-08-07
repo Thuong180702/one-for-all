@@ -64,5 +64,20 @@ for (const helper of fs.readdirSync(path.join(CONTENTS, 'Frameworks'))) {
 run('codesign', ['--force', '--sign', '-', APP]);
 run('codesign', ['--verify', '--deep', '--strict', APP]);
 
-console.log(`\nBuilt ${APP}`);
-console.log(`Install it:  cp -R "${APP}" /Applications/`);
+// 5. Package DMG installer and Zip archive
+const zipName = `${pkg.name}-v${pkg.version}-mac.zip`;
+const dmgName = `${pkg.name}-v${pkg.version}-mac.dmg`;
+const distDir = path.join(ROOT, 'dist');
+
+fs.rmSync(path.join(distDir, zipName), { force: true });
+fs.rmSync(path.join(distDir, dmgName), { force: true });
+
+console.log(`\nPackaging ${zipName}...`);
+execFileSync('zip', ['-r', '-y', zipName, `${pkg.name}.app`], { cwd: distDir, stdio: 'inherit' });
+
+console.log(`\nPackaging ${dmgName}...`);
+execFileSync('hdiutil', ['create', '-volname', pkg.name, '-srcfolder', `${pkg.name}.app`, '-ov', '-format', 'UDZO', dmgName], { cwd: distDir, stdio: 'inherit' });
+
+console.log(`\n✅ Built ${APP}`);
+console.log(`✅ Built ${path.join(distDir, zipName)}`);
+console.log(`✅ Built ${path.join(distDir, dmgName)}`);
