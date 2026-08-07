@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('__setup', {
   finishWelcome: () => ipcRenderer.send('ofa:onboarded'),
   setLoginItem: (on) => ipcRenderer.send('ofa:login-item', on),
   openNotificationSettings: () => ipcRenderer.send('ofa:notification-settings'),
+  setTheme: (theme) => ipcRenderer.send('ofa:set-theme', theme),
   setAppMode: (mode) => ipcRenderer.send('ofa:set-app-mode', mode),
   setWindowMode: (mode) => ipcRenderer.send('ofa:set-window-mode', mode),
   setRamOptimization: (on) => ipcRenderer.send('ofa:set-ram-opt', on),

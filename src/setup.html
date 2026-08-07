@@ -17,7 +17,7 @@
     --radius: 12px;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #1c1c1e;
       --card: #2c2c2e;
       --fg: #f2f2f7;
@@ -29,6 +29,30 @@
       --bad: #ff453a;
       --shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
     }
+  }
+  html[data-theme="dark"] {
+    --bg: #1c1c1e !important;
+    --card: #2c2c2e !important;
+    --fg: #f2f2f7 !important;
+    --fg-dim: #98989d !important;
+    --line: rgba(255, 255, 255, 0.1) !important;
+    --accent: #0a84ff !important;
+    --accent-hover: #409cff !important;
+    --ok: #30d158 !important;
+    --bad: #ff453a !important;
+    --shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+  }
+  html[data-theme="light"] {
+    --bg: #f4f4f7 !important;
+    --card: #ffffff !important;
+    --fg: #1c1c1e !important;
+    --fg-dim: #6c6c70 !important;
+    --line: rgba(0, 0, 0, 0.08) !important;
+    --accent: #0066cc !important;
+    --accent-hover: #0052a3 !important;
+    --ok: #34c759 !important;
+    --bad: #ff3b30 !important;
+    --shadow: 0 4px 16px rgba(0, 0, 0, 0.05) !important;
   }
 
   * { box-sizing: border-box; }
@@ -73,14 +97,21 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 12px;
   }
   .row .text {
-    flex: 1 1 200px;
-    min-width: 160px;
+    flex: 1 1 220px;
+    min-width: 180px;
   }
   .row .text b { display: block; color: var(--fg); font-weight: 600; font-size: 14px; margin-bottom: 2px; }
   .row .text span { color: var(--fg-dim); font-size: 12.5px; line-height: 1.4; }
+
+  .controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
 
   button {
     display: inline-flex;
@@ -390,6 +421,21 @@
         </p>
       </div>
 
+      <h2>Appearance & Theme</h2>
+      <div class="step">
+        <div class="row">
+          <div class="text">
+            <b>Theme Appearance</b>
+            <span>System: Follow macOS setting. Dark: Modern dark glass. Light: Clean bright theme.</span>
+          </div>
+          <div class="controls">
+            <button id="theme-system" class="primary">💻 System</button>
+            <button id="theme-dark">🌙 Dark</button>
+            <button id="theme-light">☀️ Light</button>
+          </div>
+        </div>
+      </div>
+
       <h2>Operating & Window Mode</h2>
       <div class="step">
         <div class="row">
@@ -397,8 +443,10 @@
             <b>App Operating Mode</b>
             <span>Normal: Full tabs with web views. Minimal: Notification center only, loads UI on demand.</span>
           </div>
-          <button id="mode-normal" class="primary">Normal Mode</button>
-          <button id="mode-minimal">Minimal Mode</button>
+          <div class="controls">
+            <button id="mode-normal" class="primary">Normal Mode</button>
+            <button id="mode-minimal">Minimal Mode</button>
+          </div>
         </div>
       </div>
 
@@ -408,8 +456,10 @@
             <b>Window Mode</b>
             <span>Standard: Resizable desktop window. Menu Bar: Frameless panel anchored to Mac status bar.</span>
           </div>
-          <button id="winmode-window" class="primary">Standard Window</button>
-          <button id="winmode-menubar">Menu Bar Panel</button>
+          <div class="controls">
+            <button id="winmode-window" class="primary">Standard Window</button>
+            <button id="winmode-menubar">Menu Bar Panel</button>
+          </div>
         </div>
       </div>
 
@@ -419,10 +469,12 @@
             <b>Global Toggle Hotkey</b>
             <span>Hotkey combination to quickly show or hide the application window (e.g. Cmd+Shift+Space, Alt+Space, Cmd+Alt+M).</span>
           </div>
-          <form id="shortcut-form" style="display:inline-flex; align-items:center; gap:6px; margin:0;">
-            <input id="shortcut-input" type="text" placeholder="Cmd+Shift+Space" style="width: 160px; font-weight:600; text-align:center;" />
-            <button class="primary" type="submit">Save Key</button>
-          </form>
+          <div class="controls">
+            <form id="shortcut-form" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
+              <input id="shortcut-input" type="text" placeholder="Cmd+Shift+Space" style="width: 150px; font-weight:600; text-align:center;" />
+              <button class="primary" type="submit">Save Key</button>
+            </form>
+          </div>
         </div>
         <p class="status" id="shortcut-status" hidden></p>
       </div>
@@ -542,6 +594,10 @@
       }
     }
   });
+
+  if ($('theme-system')) $('theme-system').onclick = () => window.__setup.setTheme('system');
+  if ($('theme-dark')) $('theme-dark').onclick = () => window.__setup.setTheme('dark');
+  if ($('theme-light')) $('theme-light').onclick = () => window.__setup.setTheme('light');
 
   for (const id of ['open-settings', 'settings-open-notification-settings']) {
     if ($(id)) $(id).onclick = () => window.__setup.openNotificationSettings();
@@ -838,7 +894,7 @@
   }
 
   /* ------------------------------------------------------------------ state */
-  window.__setup.onState(({ page, presets, services, canClose, notificationsOk, openAtLogin, appMode, windowMode, globalShortcut, ramOptimization, idleSleepMinutes, history, genericIcon: gi }) => {
+  window.__setup.onState(({ page, presets, services, canClose, notificationsOk, openAtLogin, theme, appMode, windowMode, globalShortcut, ramOptimization, idleSleepMinutes, history, genericIcon: gi }) => {
     currentPresets = presets || [];
     currentServices = services || [];
     currentHistory = history || [];
@@ -857,6 +913,13 @@
     showDone('settings-allow', 'settings-allow-done', notificationsOk);
     showDone('login-item', 'login-done', openAtLogin);
     showDone('settings-login-item', 'settings-login-done', openAtLogin);
+
+    // Theme buttons
+    const currentTheme = theme || 'system';
+    document.documentElement.dataset.theme = currentTheme;
+    if ($('theme-system')) $('theme-system').className = currentTheme === 'system' ? 'primary' : '';
+    if ($('theme-dark')) $('theme-dark').className = currentTheme === 'dark' ? 'primary' : '';
+    if ($('theme-light')) $('theme-light').className = currentTheme === 'light' ? 'primary' : '';
 
     // Mode buttons
     const isMinimal = appMode === 'minimal';

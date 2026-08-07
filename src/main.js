@@ -1,6 +1,6 @@
 const {
   app, BaseWindow, WebContentsView, Notification, session, Tray, Menu, screen,
-  globalShortcut, powerSaveBlocker, powerMonitor, ipcMain, nativeImage, shell,
+  globalShortcut, powerSaveBlocker, powerMonitor, ipcMain, nativeImage, shell, nativeTheme,
 } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -229,6 +229,7 @@ function renderSetup() {
     })),
     canClose: views.size > 0,
     notificationsOk: !!cfg.notificationsOk,
+    theme: cfg.theme || 'system',
     appMode: cfg.appMode || 'normal',
     windowMode: cfg.windowMode || 'window',
     globalShortcut: cfg.globalShortcut || 'Cmd+Shift+Space',
@@ -275,6 +276,7 @@ function show(forceService = false) {
 function applyConfig(next) {
   const ramOptChanged = cfg.ramOptimization !== next.ramOptimization;
   cfg = next;
+  nativeTheme.themeSource = cfg.theme || 'system';
   const wanted = next.services.filter((s) => s.enabled);
   for (const id of [...views.keys()]) {
     if (!wanted.some((s) => s.id === id)) removeService(id);
@@ -452,12 +454,14 @@ ipcMain.on('ofa:history-clear', () => {
   history.length = 0;
   renderSetup();
 });
+ipcMain.on('ofa:set-theme', (_e, theme) => patchConfig({ theme }));
 ipcMain.on('ofa:set-app-mode', (_e, mode) => patchConfig({ appMode: mode }));
 ipcMain.on('ofa:set-ram-opt', (_e, on) => patchConfig({ ramOptimization: !!on }));
 ipcMain.on('ofa:set-idle-sleep', (_e, mins) => patchConfig({ idleSleepMinutes: Number(mins) || 0 }));
 // fs.watch turns every one of these into applyConfig, which re-renders the UI.
 const patchConfig = (patch) => {
   cfg = config.withDefaults({ ...cfg, ...patch });
+  nativeTheme.themeSource = cfg.theme || 'system';
   config.save(cfg);
 };
 
@@ -907,6 +911,7 @@ function buildAppMenu() {
 /* ---------------------------------------------------------------- lifecycle */
 
 app.whenReady().then(() => {
+  nativeTheme.themeSource = cfg.theme || 'system';
   const menubar = isMenubar();
   win = new BaseWindow({
     width: menubar ? 420 : 1100,

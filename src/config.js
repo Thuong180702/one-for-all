@@ -7,6 +7,7 @@ const DIR = path.join(os.homedir(), 'Library', 'Application Support', 'one-for-a
 const FILE = path.join(DIR, 'config.json');
 
 const DEFAULTS = {
+  theme: 'system', // "system" | "dark" | "light"
   startAtLogin: true,
   windowMode: 'window', // "window" | "menubar"
   appMode: 'normal', // "normal" (full UI on click) | "minimal" (notifications only, load UI on demand)
