@@ -38,6 +38,17 @@ Browsers like Chrome and Safari aggressively throttle background tabs, causing m
 
 ---
 
+## ⚡ Minimal Mode & RAM Optimization
+
+`one-for-all` is built from the ground up for maximum resource efficiency. Beyond standard tab management, it offers a dedicated **Minimal Mode**:
+
+- 🚀 **Zero-UI Background Notification Daemon**: When switched to **Minimal Mode**, the main tab bar and heavy webview windows stay hidden. The app operates as an ultra-lightweight background notification router, consuming up to **80% less RAM**.
+- 📋 **Integrated Notification History Board**: In Minimal Mode, clicking the Tray icon or global hotkey opens a sleek **Notification History Board** showing recent messages with brand icons, timestamps, and one-click deep-link jumps.
+- 💤 **Customizable Idle Sleep Watchdog**: Set inactive tabs to auto-sleep after 5m, 10m, 15m, 30m, 60m, or custom duration. Sleeping tabs unload memory entirely until you switch back to them, while keeping unread counters 100% active.
+- 🔋 **Battery-Friendly Throttling**: Pauses unnecessary DOM animations and canvas rendering on background webviews without dropping socket connections.
+
+---
+
 ## 📦 Quick Installation
 
 ### Method 1: Via Homebrew (Recommended)

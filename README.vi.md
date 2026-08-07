@@ -38,6 +38,17 @@ Các trình duyệt như Chrome và Safari thường xuyên tự động tạm d
 
 ---
 
+## ⚡ Chế Độ Minimal & Tối Ưu RAM Siêu Nhẹ
+
+`one-for-all` được thiết kế từ gốc nhằm tối ưu hóa tài nguyên phần cứng máy Mac. Ngoài việc quản lý tab thông thường, ứng dụng cung cấp chế độ **Minimal Mode** chuyên biệt:
+
+- 🚀 **Chạy Ẩn Không Giao Diện Cầu Kỳ**: Khi bật **Minimal Mode**, ứng dụng ẩn hoàn toàn khung hiển thị tab webview nặng nề. App hoạt động như một Notification Daemon siêu nhẹ chạy nền trong Menu Bar, tiết kiệm tới **80% bộ nhớ RAM**.
+- 📋 **Bảng Lịch Sử Thông Báo Trực Quan**: Ở chế độ Minimal, bấm vào icon Tray trên Menu Bar hoặc dùng phím tắt toàn cục sẽ mở **Bảng Lịch Sử Thông Báo** hiển thị các tin nhắn gần đây cùng icon thương hiệu, thời gian nhận tin và nút nhảy trực tiếp vào cuộc trò chuyện.
+- 💤 **Tự Động Tạm Ngủ Tab Rảnh (Idle Sleep Watchdog)**: Tùy chỉnh giải phóng RAM cho các tab rảnh sau 5p, 10p, 15p, 30p, 60p hoặc số phút tự nhập. Tab đi ngủ sẽ giải phóng toàn bộ RAM cho tới khi bạn bấm vào lại, nhưng vẫn giữ thông báo tin nhắn chưa đọc 100%.
+- 🔋 **Tối Ưu Pin & Tiến Trình Nền**: Tự động dừng các animation DOM và canvas không cần thiết của các tab ẩn mà không làm rớt kết nối Socket.
+
+---
+
 ## 📦 Cài Đặt Nhanh
 
 ### Cách 1: Qua Homebrew (Khuyên dùng)
