@@ -329,7 +329,7 @@ function retain(n) {
 function notify({ title, body, sound, serviceId, onClick }) {
   dbg(`notify() called title="${title}" body="${body}" serviceId=${serviceId}`);
   const entrySvc = serviceId ? views.get(serviceId)?.service : null;
-  const icon = entrySvc?.icon || (serviceId ? presets[serviceId]?.icon : null) || (serviceId ? DATA_URIS[serviceId] : null) || DATA_URIS.generic;
+  const icon = entrySvc?.icon || (serviceId ? presets[serviceId]?.icon : null) || (serviceId && presets[serviceId] ? getFaviconUrl(presets[serviceId].url) : null) || DATA_URIS.generic;
   const serviceName = entrySvc?.name || (serviceId ? presets[serviceId]?.name : null) || '';
 
   if (cfg.history) {
