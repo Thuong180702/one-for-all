@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Builds dist/one-for-all.app out of the Electron runtime we already depend on.
+// Builds dist/notihub.app out of the Electron runtime we already depend on.
 //
 // This is not a nicety: macOS refuses to deliver notifications from an
 // unpackaged `electron .` run (UNErrorDomain error 1). A notification client
@@ -18,7 +18,7 @@ const ROOT = path.join(__dirname, '..');
 const pkg = require(path.join(ROOT, 'package.json'));
 const APP = path.join(ROOT, 'dist', `${pkg.name}.app`);
 const CONTENTS = path.join(APP, 'Contents');
-const BUNDLE_ID = 'io.github.thuong180702.one-for-all';
+const BUNDLE_ID = 'io.github.thuong180702.notihub';
 
 const run = (cmd, args) => execFileSync(cmd, args, { stdio: 'inherit' });
 const plist = (...args) => run('plutil', [...args, path.join(CONTENTS, 'Info.plist')]);

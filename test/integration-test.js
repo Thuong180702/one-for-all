@@ -2,12 +2,12 @@
 /**
  * integration-test.js
  *
- * End-to-end test that exercises the real one-for-all app:
+ * End-to-end test that exercises the real notihub app:
  *   1. Starts a local HTTP server serving a Messenger-like test page.
  *   2. Injects the service into config.json → the running app hot-reloads it.
  *   3. The test page fires 3 notifications via window.Notification (the same
  *      path our shim intercepts from Messenger's reg.showNotification) with 300 ms gaps.
- *   4. Reads ofa-debug.log and verifies:
+ *   4. Reads notihub-debug.log and verifies:
  *        - correct notification count (3 × ofa:notify, each shown)
  *        - correct sender names and bodies
  *        - badge shows 3 after all messages
@@ -15,7 +15,7 @@
  *   5. Cleans up: removes the test service from config.json.
  *
  * Usage:  node test/integration-test.js
- * Requires the packaged one-for-all.app to be running.
+ * Requires the packaged notihub.app to be running.
  */
 
 'use strict';
@@ -27,11 +27,11 @@ const os      = require('os');
 const assert  = require('assert');
 
 /* ────────────────────────────────────────── paths ─── */
-const CONFIG_PATH = path.join(os.homedir(), 'Library/Application Support/one-for-all/config.json');
-const LOG_PATH    = path.join(os.homedir(), 'Library/Application Support/one-for-all/ofa-debug.log');
+const CONFIG_PATH = path.join(os.homedir(), 'Library/Application Support/notihub/config.json');
+const LOG_PATH    = path.join(os.homedir(), 'Library/Application Support/notihub/notihub-debug.log');
 
 const PORT            = 19_823;
-const SERVICE_ID      = 'ofa-integration-test';
+const SERVICE_ID      = 'notihub-integration-test';
 const SERVICE_NAME    = 'IntegrationTest';
 const SETTLE_MS       = 3_000;  // time for the app to load the tab + shim to install
 const NOTIFY_DELAY_MS = 400;    // gap between each simulated message
@@ -69,7 +69,7 @@ function buildTestPage(messages, port) {
   </style>
 </head>
 <body>
-  <h2>🧪 one-for-all Integration Test</h2>
+  <h2>🧪 notihub Integration Test</h2>
   <div id="log"></div>
   <script>
     const NOTIFY_DELAY_MS = ${NOTIFY_DELAY_MS};
@@ -159,13 +159,13 @@ function removeTestService(cfg) {
 
 async function main() {
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('  one-for-all Notification Integration Test');
+  console.log('  notihub Notification Integration Test');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
   // ── sanity: is config accessible? ───────────────────────────────────
   if (!fs.existsSync(CONFIG_PATH)) {
     console.error(`❌ Config not found at ${CONFIG_PATH}`);
-    console.error('   Is one-for-all running?');
+    console.error('   Is notihub running?');
     process.exit(1);
   }
 
@@ -315,7 +315,7 @@ async function main() {
   } else {
     // This might not have happened yet because it requires the tab to be active+focused
     console.log('  ⚠️   Badge clear not verified in log (requires tab to be active+focused)');
-    console.log('       Switch to the IntegrationTest tab in one-for-all to see the badge clear.');
+    console.log('       Switch to the IntegrationTest tab in notihub to see the badge clear.');
   }
 
   // ── Check: duplicate popup loop prevention ────────────────────────────

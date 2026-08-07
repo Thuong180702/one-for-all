@@ -96,12 +96,12 @@ assert.strictEqual(require('../src/presets').zalo.notifyOnUnread, true);
 // window mode defaults to a normal window
 assert.strictEqual(withDefaults({}).windowMode, 'window');
 
-/* ------------------------------------------------- `ofa notify` argv hand-off */
-// Real argv captured from `open -n -a one-for-all.app --args ...`: macOS and
+/* ---------------------------------------------- `notihub notify` argv hand-off */
+// Real argv captured from `open -n -a notihub.app --args ...`: macOS and
 // Chromium between them move the payload away from its flag and inject switches.
 // This is why the flag carries its value inline.
 const realArgv = [
-  '/Applications/one-for-all.app/Contents/MacOS/one-for-all',
+  '/Applications/notihub.app/Contents/MacOS/notihub',
   `${CLI_NOTIFY}{"title":"T","body":"B"}`,
   '--allow-file-access-from-files',
   '--enable-avfoundation',

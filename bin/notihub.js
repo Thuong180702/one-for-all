@@ -8,7 +8,7 @@ const presets = require('../src/presets');
 const pkg = require('../package.json');
 
 const APP = path.join(__dirname, '..');
-const PIDFILE = path.join(config.DIR, 'ofa.pid');
+const PIDFILE = path.join(config.DIR, 'notihub.pid');
 
 const [cmd, ...args] = process.argv.slice(2);
 const flag = (name) => {
@@ -41,7 +41,7 @@ const commands = {
     const url = flag('url');
     const preset = args[0] && !args[0].startsWith('--') ? presets[args[0]] : null;
     if (!url && !preset) {
-      console.error(`Unknown service. Presets: ${Object.keys(presets).join(', ')}\nOr: ofa add --url <url> --name <name>`);
+      console.error(`Unknown service. Presets: ${Object.keys(presets).join(', ')}\nOr: notihub add --url <url> --name <name>`);
       process.exit(1);
     }
     let host;
@@ -73,12 +73,12 @@ const commands = {
     }
     cfg.services.push(service);
     config.save(config.withDefaults(cfg));
-    console.log(`Added ${service.name} (${service.id}).${isRunning() ? '' : ' Start the app with: ofa'}`);
+    console.log(`Added ${service.name} (${service.id}).${isRunning() ? '' : ' Start the app with: notihub'}`);
   },
 
   list() {
     const cfg = config.load();
-    if (!cfg.services.length) return console.log('No services configured. Try: ofa add messenger');
+    if (!cfg.services.length) return console.log('No services configured. Try: notihub add messenger');
     const w = (key) => Math.max(...cfg.services.map((s) => s[key].length));
     for (const s of cfg.services) {
       console.log(`${s.enabled ? ' ' : '-'} ${s.id.padEnd(w('id'))}  ${s.name.padEnd(w('name'))}  ${s.url}${s.muted ? '  [muted]' : ''}`);
@@ -109,7 +109,7 @@ const commands = {
   notify() {
     const title = args.find((a) => !a.startsWith('--'));
     if (!title) {
-      console.error('Usage: ofa notify "Title" [--body "..."] [--url https://...]');
+      console.error('Usage: notihub notify "Title" [--body "..."] [--url https://...]');
       process.exit(1);
     }
     // The running instance picks this out of argv via Electron's second-instance event.
@@ -123,7 +123,7 @@ const commands = {
     const cfg = config.load();
     ok(true, `config: ${config.FILE}`);
     const running = isRunning();
-    ok(running, running ? 'app is running' : 'app is not running (start it with: ofa)');
+    ok(running, running ? 'app is running' : 'app is not running (start it with: notihub)');
 
     if (BUNDLE) {
       ok(true, `packaged app: ${BUNDLE}`);
@@ -141,7 +141,7 @@ const commands = {
     }
 
     if (!cfg.services.length) {
-      ok(false, 'no services configured (ofa add messenger)');
+      ok(false, 'no services configured (notihub add messenger)');
       fatal++;
     }
     for (const s of cfg.services) {
@@ -171,7 +171,7 @@ const commands = {
     for (const s of cfg.services.filter((x) => x.muted)) ok(false, `${s.id} is muted`);
 
     console.log('\nmacOS notification permission cannot be read from here.');
-    console.log('Test it end to end with:  ofa notify "test"');
+    console.log('Test it end to end with:  notihub notify "test"');
     process.exit(fatal ? 1 : 0);
   },
 
@@ -180,16 +180,16 @@ const commands = {
   },
 
   help() {
-    console.log(`one-for-all — native macOS notifications for web apps
+    console.log(`notihub — native macOS notifications for web apps
 
-  ofa                          launch (or focus) the app
-  ofa add <preset|--url URL>   add a service   [${Object.keys(presets).join(' ')}]
-  ofa add <preset> --as work   add a second account, with its own login
-  ofa list                     list configured services
-  ofa remove <id>              remove a service
-  ofa config                   edit ${config.FILE}
-  ofa notify "Title" [--body B] [--url U]   push a notification
-  ofa doctor                   check config, connectivity, DND`);
+  notihub                          launch (or focus) the app
+  notihub add <preset|--url URL>   add a service   [${Object.keys(presets).join(' ')}]
+  notihub add <preset> --as work   add a second account, with its own login
+  notihub list                     list configured services
+  notihub remove <id>              remove a service
+  notihub config                   edit ${config.FILE}
+  notihub notify "Title" [--body B] [--url U]   push a notification
+  notihub doctor                   check config, connectivity, DND`);
   },
 };
 

@@ -1,5 +1,5 @@
 {
-  "name": "one-for-all",
+  "name": "notihub",
   "version": "0.8.0",
   "description": "⚡ All-in-one native macOS notification hub for web apps (Messenger, Zalo, Gmail, Telegram, Slack & custom web apps) with glassmorphic UI, real web favicons, and smart RAM optimization.",
   "license": "MIT",
@@ -11,8 +11,7 @@
     "node": ">=18"
   },
   "bin": {
-    "one-for-all": "bin/ofa.js",
-    "ofa": "bin/ofa.js"
+    "notihub": "bin/notihub.js"
   },
   "files": [
     "bin",

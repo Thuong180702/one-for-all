@@ -14,12 +14,12 @@ function sleep(ms) {
 }
 
 async function run() {
-  console.log('🚀 Sending 5 test notifications to one-for-all...\n');
+  console.log('🚀 Sending 5 test notifications to notihub...\n');
   for (let i = 0; i < sampleNotifications.length; i++) {
     const n = sampleNotifications[i];
     const payload = JSON.stringify({ title: n.title, body: n.body });
     try {
-      execFileSync('open', ['-a', '/Applications/one-for-all.app', '--args', `--ofa-notify=${payload}`]);
+      execFileSync('open', ['-a', '/Applications/notihub.app', '--args', `--notihub-notify=${payload}`]);
       console.log(`  ✓ Sent (${i + 1}/5): ${n.title}`);
     } catch (err) {
       console.error(`  ❌ Failed (${i + 1}/5):`, err.message);

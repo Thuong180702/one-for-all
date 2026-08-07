@@ -3,7 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const DIR = path.join(os.homedir(), 'Library', 'Application Support', 'one-for-all');
+const DIR = path.join(os.homedir(), 'Library', 'Application Support', 'notihub');
 const FILE = path.join(DIR, 'config.json');
 
 const DEFAULTS = {
@@ -136,7 +136,7 @@ function shouldNotify(service, cfg, { title = '', body = '' } = {}, now = new Da
 
 // `open --args` lets Chromium reorder argv and inject its own switches, so the
 // payload can't ride in the next slot — it has to be one token with the flag.
-const CLI_NOTIFY = '--ofa-notify=';
+const CLI_NOTIFY = '--notihub-notify=';
 function parseCliNotify(argv) {
   const arg = argv.find((a) => a.startsWith(CLI_NOTIFY));
   if (!arg) return null;

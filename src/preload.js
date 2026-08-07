@@ -49,7 +49,7 @@ function shim() {
     try {
       if (n.onclick) n.onclick.call(n, ev);
     } catch (err) {
-      console.error('[one-for-all] notification onclick threw', err);
+      console.error('[notihub] notification onclick threw', err);
     }
     n.dispatchEvent(ev);
   });

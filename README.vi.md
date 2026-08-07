@@ -1,12 +1,12 @@
 <div align="center">
 
-# ⚡ one-for-all
+# ⚡ notihub
 
 ### Trung Tâm Thông Báo Native macOS & Ứng Dụng Đa Nền Tảng Siêu Nhẹ
 
-[![Release](https://img.shields.io/github/v/release/Thuong180702/one-for-all?style=flat-macro&color=007AFF)](https://github.com/Thuong180702/one-for-all/releases)
-[![Platform](https://img.shields.io/badge/platform-macOS%2012%2B-black?style=flat-macro&logo=apple)](https://github.com/Thuong180702/one-for-all)
-[![Homebrew](https://img.shields.io/badge/homebrew-cask-orange?style=flat-macro&logo=homebrew)](https://github.com/Thuong180702/one-for-all)
+[![Release](https://img.shields.io/github/v/release/Thuong180702/notihub?style=flat-macro&color=007AFF)](https://github.com/Thuong180702/notihub/releases)
+[![Platform](https://img.shields.io/badge/platform-macOS%2012%2B-black?style=flat-macro&logo=apple)](https://github.com/Thuong180702/notihub)
+[![Homebrew](https://img.shields.io/badge/homebrew-cask-orange?style=flat-macro&logo=homebrew)](https://github.com/Thuong180702/notihub)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 *Biến tất cả công cụ nhắn tin & làm việc web (**Messenger, Zalo, Gmail, Slack, Telegram, WhatsApp**) thành ứng dụng macOS native hiệu năng cao với thông báo tức thì, icon favicon chuẩn web và không tốn pin chạy nền.*
@@ -17,11 +17,11 @@
 
 ---
 
-## 🌟 Tại sao chọn `one-for-all`?
+## 🌟 Tại sao chọn `notihub`?
 
 Các trình duyệt như Chrome và Safari thường xuyên tự động tạm dừng (throttle) các tab ẩn chạy nền, dẫn đến tình trạng bỏ lỡ tin nhắn, rớt kết nối Socket, im lặng mất kết nối và ngốn rất nhiều RAM. Trong khi đó, các ứng dụng nhắn tin web phổ biến (như Messenger hay Zalo) thường không có app native chuẩn cho Mac.
 
-`one-for-all` giải quyết triệt để vấn đề này bằng cách đưa mỗi ứng dụng web vào một container riêng biệt luôn giữ kết nối, chuyển đổi mọi thông báo thành **popup Notification Center gốc của macOS**, hỗ trợ nhảy trực tiếp vào đoạn chat và tối ưu bộ nhớ RAM ở mức cực thấp.
+`notihub` giải quyết triệt để vấn đề này bằng cách đưa mỗi ứng dụng web vào một container riêng biệt luôn giữ kết nối, chuyển đổi mọi thông báo thành **popup Notification Center gốc của macOS**, hỗ trợ nhảy trực tiếp vào đoạn chat và tối ưu bộ nhớ RAM ở mức cực thấp.
 
 ---
 
@@ -35,7 +35,7 @@ Các trình duyệt như Chrome và Safari thường xuyên tự động tạm d
 - 🎛️ **Menu Chuột Phải & Quản Lý Theo Dịch Vụ**: Chuột phải vào Tab để Bật/Tắt thông báo, ẩn badge đếm số, tải lại trang hoặc chỉnh sửa cài đặt riêng cho từng app.
 - 💤 **Tự Động Tạm Ngủ Giải Phóng RAM**: Tự động giải phóng bộ nhớ cho các tab ẩn sau N phút không hoạt động mà không làm mất tin nhắn chưa đọc.
 - 💎 **Giao Diện Glassmorphic Hiện Đại**: Thiết kế mờ hiệu ứng kính sang trọng, thẻ ứng dụng trực quan, bộ lọc tìm kiếm tức thì và chuyển cảnh mượt mà.
-- 🔒 **Đa Tài Khoản & Session Tách Biệt**: Đăng nhập nhiều tài khoản cùng lúc (`ofa add messenger --as work`) mà không lo lẫn lộn cookie.
+- 🔒 **Đa Tài Khoản & Session Tách Biệt**: Đăng nhập nhiều tài khoản cùng lúc (`notihub add messenger --as work`) mà không lo lẫn lộn cookie.
 - ⚡ **Chế Độ Chạy Nền Minimal**: Chạy ẩn hoàn toàn dưới dạng Notification Hub & Menu Bar Tray mà không cần hiển thị khung webview.
 - 🛡️ **100% Bảo Mật & Mã Nguồn Mở**: Không theo dõi, không máy chủ trung gian, không telemetry. Toàn bộ dữ liệu nằm hoàn toàn trên máy Mac của bạn.
 
@@ -43,7 +43,7 @@ Các trình duyệt như Chrome và Safari thường xuyên tự động tạm d
 
 ## ⚡ Chế Độ Minimal & Tối Ưu RAM Siêu Nhẹ
 
-`one-for-all` được thiết kế từ gốc nhằm tối ưu hóa tài nguyên phần cứng máy Mac. Ngoài việc quản lý tab thông thường, ứng dụng cung cấp chế độ **Minimal Mode** chuyên biệt:
+`notihub` được thiết kế từ gốc nhằm tối ưu hóa tài nguyên phần cứng máy Mac. Ngoài việc quản lý tab thông thường, ứng dụng cung cấp chế độ **Minimal Mode** chuyên biệt:
 
 - 🚀 **Chạy Ẩn Không Giao Diện Cầu Kỳ**: Khi bật **Minimal Mode**, ứng dụng ẩn hoàn toàn khung hiển thị tab webview nặng nề. App hoạt động như một Notification Daemon siêu nhẹ chạy nền trong Menu Bar, tiết kiệm tới **80% bộ nhớ RAM**.
 - 📋 **Bảng Lịch Sử Thông Báo Trực Quan**: Ở chế độ Minimal, bấm vào icon Tray trên Menu Bar hoặc dùng phím tắt toàn cục sẽ mở **Bảng Lịch Sử Thông Báo** hiển thị các tin nhắn gần đây cùng icon thương hiệu, thời gian nhận tin và nút nhảy trực tiếp vào cuộc trò chuyện.
@@ -57,35 +57,35 @@ Các trình duyệt như Chrome và Safari thường xuyên tự động tạm d
 ### Cách 1: Qua Homebrew (Khuyên dùng)
 
 ```bash
-brew install --cask https://raw.githubusercontent.com/Thuong180702/one-for-all/main/Casks/one-for-all.rb
+brew install --cask https://raw.githubusercontent.com/Thuong180702/notihub/main/Casks/notihub.rb
 ```
 
 *Hoặc thêm Tap:*
 ```bash
-brew tap Thuong180702/one-for-all https://github.com/Thuong180702/one-for-all
-brew install --cask one-for-all
+brew tap Thuong180702/notihub https://github.com/Thuong180702/notihub
+brew install --cask notihub
 ```
 
 ### Cách 2: Tải Trực Tiếp Bản Build `.app`
 
-1. Tải bản nén mới nhất từ [GitHub Latest Releases](https://github.com/Thuong180702/one-for-all/releases/latest).
-2. Giải nén và kéo file `one-for-all.app` vào thư mục `/Applications`.
+1. Tải bản nén mới nhất từ [GitHub Latest Releases](https://github.com/Thuong180702/notihub/releases/latest).
+2. Giải nén và kéo file `notihub.app` vào thư mục `/Applications`.
 
 ### Cách 3: Biên Dịch Từ Mã Nguồn (Source)
 
 ```bash
-git clone https://github.com/Thuong180702/one-for-all.git
-cd one-for-all
+git clone https://github.com/Thuong180702/notihub.git
+cd notihub
 npm install
 npm run build
-cp -R dist/one-for-all.app /Applications/
+cp -R dist/notihub.app /Applications/
 ```
 
 ---
 
 ## ⚡ Các Ứng Dụng Hỗ Trợ
 
-`one-for-all` hỗ trợ sẵn tất cả các nền tảng phổ biến và **bất kỳ địa chỉ Web URL tùy chỉnh nào**:
+`notihub` hỗ trợ sẵn tất cả các nền tảng phổ biến và **bất kỳ địa chỉ Web URL tùy chỉnh nào**:
 
 | Dịch vụ | Thông báo Native | Badge Tin Chưa Đọc | Deep Link Đoạn Chat | Favicon Thực Tế |
 |---|---|---|---|---|
@@ -114,17 +114,17 @@ cp -R dist/one-for-all.app /Applications/
 
 ## 💻 Lệnh CLI Đồng Hành
 
-`one-for-all` đi kèm bộ công cụ dòng lệnh mạnh mẽ hỗ trợ tự động hóa và viết script:
+`notihub` đi kèm bộ công cụ dòng lệnh mạnh mẽ hỗ trợ tự động hóa và viết script:
 
 ```bash
-one-for-all                           # Mở hoặc focus ứng dụng
-one-for-all add messenger             # Thêm dịch vụ preset
-one-for-all add messenger --as work   # Thêm tài khoản thứ 2 độc lập
-one-for-all add --url https://proton.me --name "Proton Mail"
-one-for-all list                      # Liệt kê tất cả dịch vụ đang chạy
-one-for-all remove slack              # Gỡ bỏ một dịch vụ
-one-for-all notify "Build Hoàn Tất" --body "Đã triển khai thành công" --url https://ci.example.com
-one-for-all doctor                    # Kiểm tra quyền thông báo & cấu hình
+notihub                           # Mở hoặc focus ứng dụng
+notihub add messenger             # Thêm dịch vụ preset
+notihub add messenger --as work   # Thêm tài khoản thứ 2 độc lập
+notihub add --url https://proton.me --name "Proton Mail"
+notihub list                      # Liệt kê tất cả dịch vụ đang chạy
+notihub remove slack              # Gỡ bỏ một dịch vụ
+notihub notify "Build Hoàn Tất" --body "Đã triển khai thành công" --url https://ci.example.com
+notihub doctor                    # Kiểm tra quyền thông báo & cấu hình
 ```
 
 ---

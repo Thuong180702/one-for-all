@@ -19,7 +19,7 @@ app.commandLine.appendSwitch('disk-cache-size', String(64 * 1024 * 1024));
 
 const TAB_H = 34;
 const DEV = process.argv.includes('--dev');
-const LOG_FILE = path.join(config.DIR, 'ofa-debug.log');
+const LOG_FILE = path.join(config.DIR, 'notihub-debug.log');
 // Notification title/body pass through here — real message content. Only ever
 // written to disk in --dev; on disk otherwise would contradict the README's
 // "notification history... nothing is written to disk" privacy claim.
@@ -27,9 +27,9 @@ function dbg(...args) {
   if (!DEV) return;
   const line = `[${new Date().toISOString()}] ${args.join(' ')}\n`;
   try { fs.appendFileSync(LOG_FILE, line); } catch {}
-  console.log('[ofa-debug]', ...args);
+  console.log('[notihub-debug]', ...args);
 }
-const PIDFILE = path.join(config.DIR, 'ofa.pid');
+const PIDFILE = path.join(config.DIR, 'notihub.pid');
 
 let cfg = config.load();
 const views = new Map(); // service.id -> { view, service, unread, lastSeen }
@@ -40,7 +40,7 @@ let setupPage = 'services';
 let pendingLogin = null; // service added from the UI, to switch to once it exists
 
 // Sites block the Electron UA; pretend to be plain Chrome.
-const USER_AGENT = app.userAgentFallback.replace(/ (one-for-all|Electron)\/[\d.]+/g, '');
+const USER_AGENT = app.userAgentFallback.replace(/ (notihub|Electron)\/[\d.]+/g, '');
 
 /* ---------------------------------------------------------------- services */
 
@@ -119,7 +119,7 @@ function removeService(id) {
     active = null;
     const next = views.keys().next().value;
     if (next) switchTo(next);
-    else win.setTitle('one-for-all');
+    else win.setTitle('notihub');
   }
 }
 
@@ -359,7 +359,7 @@ function notify({ title, body, sound, serviceId, onClick }) {
   n.on('click', onClick);
   n.on('failed', (_e, err) => {
     dbg(`notification FAILED title="${title}" err=${err}`);
-    console.error(`[ofa] notification failed: ${err}\n[ofa] System Settings > Notifications > ${app.getName()} — allow notifications.`);
+    console.error(`[notihub] notification failed: ${err}\n[notihub] System Settings > Notifications > ${app.getName()} — allow notifications.`);
   });
   n.show();
 }
@@ -543,7 +543,7 @@ function recreateWindow() {
     width: menubar ? 420 : 1100,
     height: menubar ? 620 : 780,
     show: false,
-    title: 'one-for-all',
+    title: 'notihub',
     frame: !menubar,
     alwaysOnTop: menubar,
   });
@@ -668,7 +668,7 @@ ipcMain.on('ofa:test-notification', (e) => {
   };
 
   try {
-    const n = retain(new Notification({ title: 'one-for-all', body: 'Notifications are working.' }));
+    const n = retain(new Notification({ title: 'notihub', body: 'Notifications are working.' }));
     n.on('show', () => {
       if (!cfg.notificationsOk) patchConfig({ notificationsOk: true });
       reply({ ok: true });
@@ -724,7 +724,7 @@ ipcMain.on('ofa:set-unread-count', (_e, count) => {
   }
 });
 
-// `ofa notify ...` relaunches the app; the running instance picks the payload out of argv.
+// `notihub notify ...` relaunches the app; the running instance picks the payload out of argv.
 function handleCliNotify(argv) {
   const payload = config.parseCliNotify(argv);
   if (!payload) return false;
@@ -831,7 +831,7 @@ function buildTrayMenu() {
     { label: 'Reload All', click: reloadAll },
     { label: 'Setup & Permissions…', click: () => { show(); openSetup('welcome'); } },
     { type: 'separator' },
-    { label: 'Quit one-for-all', accelerator: 'Cmd+Q', click: () => app.quit() },
+    { label: 'Quit notihub', accelerator: 'Cmd+Q', click: () => app.quit() },
   ]);
 
   if (process.platform === 'darwin') {
@@ -922,7 +922,7 @@ app.whenReady().then(() => {
     width: menubar ? 420 : 1100,
     height: menubar ? 620 : 780,
     show: false,
-    title: 'one-for-all',
+    title: 'notihub',
     frame: !menubar,
     alwaysOnTop: menubar,
   });
@@ -964,7 +964,7 @@ app.whenReady().then(() => {
   trayIcon.addRepresentation({ scaleFactor: 2, buffer: trayPng(2) });
   trayIcon.setTemplateImage(true); // black-on-transparent: macOS tints it for light/dark menu bars
   tray = new Tray(trayIcon);
-  tray.setToolTip('one-for-all');
+  tray.setToolTip('notihub');
   // In menubar mode the blur handler has already hidden the panel by the time this
   // fires, so treat a click just after a hide as "close", not "open again".
   let hiddenAt = 0;
