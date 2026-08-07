@@ -27,9 +27,12 @@ Các trình duyệt như Chrome và Safari thường xuyên tự động tạm d
 
 ## 🔥 Tính Năng Nổi Bật
 
-- 🔔 **Thông Báo Native macOS Thật**: Tích hợp trực tiếp với Notification Center của macOS — tương thích hoàn toàn với các chế độ Focus Mode, Do Not Disturb (DND), Màn hình khóa và âm thanh hệ thống.
-- 🎯 **Nhảy Trực Tiếp Vào Đoạn Chat (Deep-Link)**: Nhấp vào thông báo sẽ mở ngay lập tức đúng cuộc trò chuyện hoặc email cụ thể, không phải màn hình hộp thư chung.
-- 🌐 **Tự Động Tải Favicon Thực Tế**: Tự động trích xuất và hiển thị icon favicon chuẩn độ phân giải cao cho tất cả preset và URL web tùy chỉnh.
+- 🪟 **Chế Độ Cửa Sổ Linh Hoạt (Window Mode)**: Chuyển đổi tức thì giữa **Standard Desktop Window** (cửa sổ chuẩn có Dock icon) và **Menu Bar Panel** (khung mờ đính thanh trạng thái) trực tiếp từ Settings.
+- ⌨️ **Tùy Chỉnh Phím Tắt Toàn Cục**: Tự do cài đặt phím tắt riêng (ví dụ: `Cmd+Shift+Space`, `Alt+Space`, `Cmd+Alt+M`) để ẩn/hiện nhanh ứng dụng từ bất kỳ đâu.
+- 🔔 **Thông Báo Native macOS Thật**: Tích hợp trực tiếp với Notification Center của macOS — tương thích hoàn toàn với Focus Mode, Do Not Disturb, âm thanh hệ thống và hiển thị đúng Logo riêng biệt cho từng ứng dụng.
+- 🎯 **Nhảy Trực Tiếp Vào Đoạn Chat (Deep-Link)**: Nhấp vào thông báo sẽ mở ngay lập tức đúng cuộc trò chuyện hoặc email cụ thể.
+- 🌐 **Thêm Web App Tùy Chỉnh & Favicon Thực**: Tự động tải favicon sắc nét cho các preset và form thêm ứng dụng Web tùy chỉnh giao diện hiện đại.
+- 🎛️ **Menu Chuột Phải & Quản Lý Theo Dịch Vụ**: Chuột phải vào Tab để Bật/Tắt thông báo, ẩn badge đếm số, tải lại trang hoặc chỉnh sửa cài đặt riêng cho từng app.
 - 💤 **Tự Động Tạm Ngủ Giải Phóng RAM**: Tự động giải phóng bộ nhớ cho các tab ẩn sau N phút không hoạt động mà không làm mất tin nhắn chưa đọc.
 - 💎 **Giao Diện Glassmorphic Hiện Đại**: Thiết kế mờ hiệu ứng kính sang trọng, thẻ ứng dụng trực quan, bộ lọc tìm kiếm tức thì và chuyển cảnh mượt mà.
 - 🔒 **Đa Tài Khoản & Session Tách Biệt**: Đăng nhập nhiều tài khoản cùng lúc (`ofa add messenger --as work`) mà không lo lẫn lộn cookie.

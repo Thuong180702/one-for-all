@@ -27,9 +27,12 @@ Browsers like Chrome and Safari aggressively throttle background tabs, causing m
 
 ## 🔥 Key Features
 
-- 🔔 **True Native macOS Notifications**: Direct integration with macOS Notification Center — respects Focus Modes, Do Not Disturb, Lock Screen, and native alert sounds.
+- 🪟 **Dynamic Window Modes**: Instantly toggle between **Standard Desktop Window** (resizable window with Dock icon) and **Menu Bar Panel** (frameless status bar popup) directly from Settings.
+- ⌨️ **Customizable Global Hotkey**: Record and customize your own global hotkey (e.g. `Cmd+Shift+Space`, `Alt+Space`, `Cmd+Alt+M`) to instantly show or hide the application anywhere.
+- 🔔 **True Native macOS Notifications**: Direct integration with macOS Notification Center — respects Focus Modes, Do Not Disturb, Lock Screen, and native alert sounds with dedicated per-service icons.
 - 🎯 **Deep-Link Thread Jump**: Clicking a notification opens the exact conversation thread or email message, not just the generic inbox.
-- 🌐 **Real Web Favicons**: Automatic high-res favicon extraction for all presets and custom web URLs.
+- 🌐 **Real Web Favicons & Custom Web Apps**: Automatic high-res favicon extraction for all presets and custom web URLs with sleek custom web app creation.
+- 🎛️ **Per-Service Controls & Context Menu**: Right-click tabs to Mute/Unmute notifications, toggle unread badges, reload, or tweak per-service settings.
 - 💤 **Smart RAM Auto-Sleep Watchdog**: Automatically unloads memory for background tabs after N idle minutes without missing unread messages.
 - 💎 **Modern Glassmorphic Interface**: Sleek translucent design, custom brand tile cards, instant search filtering, and smooth transitions.
 - 🔒 **Multi-Account & Isolated Sessions**: Log into multiple accounts (`ofa add messenger --as work`) without cookie interference.
