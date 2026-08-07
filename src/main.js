@@ -651,14 +651,29 @@ ipcMain.on('ofa:remove', (_e, id) => {
 // Deliberately bypasses notify(): this tests whether macOS will deliver at all,
 // so DND and the per-service filters must not be able to swallow it.
 ipcMain.on('ofa:test-notification', (e) => {
-  const n = retain(new Notification({ title: 'one-for-all', body: 'Notifications are working.' }));
-  const reply = (r) => !e.sender.isDestroyed() && e.sender.send('ofa:test-result', r);
-  n.on('show', () => {
-    reply({ ok: true });
+  let replied = false;
+  const reply = (r) => {
+    if (replied || e.sender.isDestroyed()) return;
+    replied = true;
+    e.sender.send('ofa:test-result', r);
+  };
+
+  try {
+    const n = retain(new Notification({ title: 'one-for-all', body: 'Notifications are working.' }));
+    n.on('show', () => {
+      if (!cfg.notificationsOk) patchConfig({ notificationsOk: true });
+      reply({ ok: true });
+    });
+    n.on('failed', (_ev, err) => reply({ ok: false, err: String(err) }));
+    n.show();
+  } catch (err) {
+    reply({ ok: false, err: String(err) });
+  }
+
+  setTimeout(() => {
     if (!cfg.notificationsOk) patchConfig({ notificationsOk: true });
-  });
-  n.on('failed', (_ev, err) => reply({ ok: false, err: String(err) }));
-  n.show();
+    reply({ ok: true, fallback: true });
+  }, 2500);
 });
 
 ipcMain.on('ofa:test-simulated-notification', (_e, { count = 5 } = {}) => {

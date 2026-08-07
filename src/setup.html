@@ -521,21 +521,25 @@
       if (!el) continue;
       el.hidden = false;
       el.className = 'status';
-      el.textContent = 'Sending a test notification…';
+      el.textContent = 'Requesting permission from macOS…';
     }
     window.__setup.test();
   };
   for (const prefix of ALLOW_PREFIXES) if ($(prefix)) $(prefix).onclick = triggerTestNotification;
 
   window.__setup.onTestResult(({ ok, err }) => {
-    const text = ok ? 'Test notification sent.' : 'macOS refused: ' + err;
+    const text = ok ? '✓ Notification permission requested.' : 'macOS refused: ' + (err || 'Unknown error');
     for (const prefix of ALLOW_PREFIXES) {
       const el = $(`${prefix}-status`);
       if (!el) continue;
       el.hidden = false;
       el.className = 'status ' + (ok ? 'ok' : 'bad');
       el.textContent = text;
-      $(`${prefix}-fix`).hidden = false;
+      if (!ok && $(`${prefix}-fix`)) $(`${prefix}-fix`).hidden = false;
+      if (ok) {
+        if ($(`${prefix}-done`)) $(`${prefix}-done`).hidden = false;
+        if ($(prefix)) $(prefix).hidden = true;
+      }
     }
   });
 
