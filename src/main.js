@@ -608,7 +608,7 @@ function buildTrayMenu() {
       if (h.serviceId) switchTo(h.serviceId);
     },
   }));
-  tray.setContextMenu(Menu.buildFromTemplate([
+  const menu = Menu.buildFromTemplate([
     ...services,
     { type: 'separator' },
     { label: 'Recent', submenu: recent.length ? recent : [{ label: 'Nothing yet', enabled: false }] },
@@ -625,7 +625,13 @@ function buildTrayMenu() {
     { label: 'Setup & Permissions…', click: () => { show(); openSetup('welcome'); } },
     { type: 'separator' },
     { label: 'Quit one-for-all', accelerator: 'Cmd+Q', click: () => app.quit() },
-  ]));
+  ]);
+
+  if (process.platform === 'darwin') {
+    tray.on('right-click', () => tray.popUpContextMenu(menu));
+  } else {
+    tray.setContextMenu(menu);
+  }
 }
 
 function buildAppMenu() {
