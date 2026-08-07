@@ -262,7 +262,10 @@ function positionUnderTray() {
 }
 
 function show(forceService = false) {
-  if (isMenubar()) positionUnderTray();
+  if (isMenubar()) {
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    positionUnderTray();
+  }
   win.show();
   app.focus({ steal: true });
   // Minimal mode: show notification board / setup unless explicitly opening a service
@@ -565,11 +568,13 @@ function recreateWindow() {
 
   if (menubar) {
     if (app.dock) app.dock.hide();
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     win.on('blur', () => {
       if (![...views.values()].some((v) => v.view.webContents.isDevToolsOpened())) win.hide();
     });
   } else {
     if (app.dock) app.dock.show();
+    win.setVisibleOnAllWorkspaces(false);
   }
 
   if (tabsView) win.contentView.addChildView(tabsView);
@@ -933,6 +938,7 @@ app.whenReady().then(() => {
   });
   if (menubar) {
     app.dock.hide(); // menu bar only: no Dock icon, no app switcher entry
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     win.on('blur', () => {
       // BaseWindow has no webContents of its own; ask the service views instead,
       // otherwise opening devtools blurs the panel and hides it out from under you.
