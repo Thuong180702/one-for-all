@@ -57,12 +57,7 @@ Các trình duyệt như Chrome và Safari thường xuyên tự động tạm d
 ### Cách 1: Qua Homebrew (Khuyên dùng)
 
 ```bash
-brew install --cask https://raw.githubusercontent.com/Thuong180702/notihub/main/Casks/notihub.rb
-```
-
-*Hoặc thêm Tap:*
-```bash
-brew tap Thuong180702/notihub https://github.com/Thuong180702/notihub
+brew tap thuong180702/notihub
 brew install --cask notihub
 ```
 

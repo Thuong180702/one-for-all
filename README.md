@@ -60,12 +60,7 @@ Browsers like Chrome and Safari aggressively throttle background tabs, causing m
 ### Method 1: Via Homebrew (Recommended)
 
 ```bash
-brew install --cask https://raw.githubusercontent.com/Thuong180702/notihub/main/Casks/notihub.rb
-```
-
-*Or add the tap:*
-```bash
-brew tap Thuong180702/notihub https://github.com/Thuong180702/notihub
+brew tap thuong180702/notihub
 brew install --cask notihub
 ```
 
