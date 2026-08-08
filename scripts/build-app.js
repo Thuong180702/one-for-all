@@ -18,7 +18,11 @@ const ROOT = path.join(__dirname, '..');
 const pkg = require(path.join(ROOT, 'package.json'));
 const APP = path.join(ROOT, 'dist', `${pkg.name}.app`);
 const CONTENTS = path.join(APP, 'Contents');
-const BUNDLE_ID = 'io.github.thuong180702.notihub';
+// The `.app` suffix is not cosmetic: macOS wedged a broken menu bar slot onto the
+// plain `…notihub` id, and the Tray became permanently invisible under it — the
+// same binary got a valid slot under any other id (verified with a native
+// NSStatusItem probe). Renaming this back would resurrect that bug.
+const BUNDLE_ID = 'io.github.thuong180702.notihub.app';
 
 const run = (cmd, args) => execFileSync(cmd, args, { stdio: 'inherit' });
 const plist = (...args) => run('plutil', [...args, path.join(CONTENTS, 'Info.plist')]);

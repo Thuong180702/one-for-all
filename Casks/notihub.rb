@@ -1,6 +1,6 @@
 cask "notihub" do
-  version "1.0.1"
-  sha256 "703cf64dff8e93bdeabfeb5fa8c1c1714df51bc519ce60f68e85ce30d0fcd816"
+  version "1.1.1"
+  sha256 "98a3ab9535e173eb6ffebd8c77a6ff2d780ae44b3d4fa274046518c360981679"
 
   url "https://github.com/Thuong180702/notihub/releases/download/v#{version}/notihub-v#{version}-mac.dmg"
   name "notihub"
@@ -11,8 +11,8 @@ cask "notihub" do
 
   zap trash: [
     "~/Library/Application Support/notihub",
-    "~/Library/Preferences/io.github.thuong180702.notihub.plist",
-    "~/Library/Saved Application State/io.github.thuong180702.notihub.savedState",
+    "~/Library/Preferences/io.github.thuong180702.notihub.app.plist",
+    "~/Library/Saved Application State/io.github.thuong180702.notihub.app.savedState",
   ]
 
   caveats <<~EOS
