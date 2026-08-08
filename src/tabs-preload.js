@@ -42,4 +42,6 @@ contextBridge.exposeInMainWorld('__setup', {
   onShortcutResult: (cb) => ipcRenderer.on('ofa:shortcut-result', (_e, r) => cb(r)),
   select: (id) => ipcRenderer.send('ofa:select', id),
   clearHistory: () => ipcRenderer.send('ofa:history-clear'),
+  checkUpdate: () => ipcRenderer.send('ofa:check-update'),
+  openRelease: () => ipcRenderer.send('ofa:open-release'),
 });

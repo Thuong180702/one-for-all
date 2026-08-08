@@ -1,6 +1,6 @@
 cask "notihub" do
-  version "1.0.0"
-  sha256 "22f60b747cc73967761d157c5e8d08223c5cb72fa014def40d457efe6645f4ab"
+  version "1.0.1"
+  sha256 "703cf64dff8e93bdeabfeb5fa8c1c1714df51bc519ce60f68e85ce30d0fcd816"
 
   url "https://github.com/Thuong180702/notihub/releases/download/v#{version}/notihub-v#{version}-mac.dmg"
   name "notihub"

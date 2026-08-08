@@ -652,6 +652,19 @@
       <h1>Settings</h1>
       <p>Manage permissions, operating modes, performance, and startup.</p>
 
+      <div class="step" id="update-banner" hidden style="margin-bottom: 16px;">
+        <div class="row">
+          <div class="text">
+            <b>Update available</b>
+            <span class="status warn" id="update-status" style="margin: 2px 0 0;"></span>
+          </div>
+          <div class="controls">
+            <button class="link" id="update-check-now">Check Now</button>
+            <button class="primary" id="update-view-release">View Release</button>
+          </div>
+        </div>
+      </div>
+
       <div class="settings-nav" id="settings-nav">
         <button data-target="sec-permissions">Permissions</button>
         <button data-target="sec-appearance">Appearance</button>
@@ -803,6 +816,16 @@
         </div>
       </div>
 
+      <div class="step">
+        <div class="row">
+          <div class="text">
+            <b>Software Update</b>
+            <span id="version-status">notihub</span>
+          </div>
+          <button id="check-update-btn">Check for Updates</button>
+        </div>
+      </div>
+
       <div class="foot">
         <button id="settings-done" class="primary">Done</button>
       </div>
@@ -901,6 +924,18 @@
   }
   $('continue').onclick = () => window.__setup.finishWelcome();
   $('skip').onclick = () => window.__setup.finishWelcome();
+
+  // Update check: no auto-download/install (see main.js comment on checkForUpdate) —
+  // just tells you a newer tag exists on GitHub and opens the release page.
+  let checkingUpdate = false;
+  const triggerCheck = () => {
+    checkingUpdate = true;
+    if ($('version-status')) $('version-status').textContent = 'Checking for updates…';
+    window.__setup.checkUpdate();
+  };
+  $('check-update-btn').onclick = triggerCheck;
+  $('update-check-now').onclick = triggerCheck;
+  $('update-view-release').onclick = () => window.__setup.openRelease();
 
   /* --------------------------------------------------------------- services */
   $('preset-search').oninput = (e) => {
@@ -1366,13 +1401,25 @@
   }
 
   /* ------------------------------------------------------------------ state */
-  window.__setup.onState(({ page, presets, services, canClose, standalone, notificationsOk, openAtLogin, theme, appMode, windowMode, globalShortcut, ramOptimization, idleSleepMinutes, dnd, dndSchedule, history, genericIcon: gi }) => {
+  window.__setup.onState(({ page, presets, services, canClose, standalone, notificationsOk, openAtLogin, theme, appMode, windowMode, globalShortcut, ramOptimization, idleSleepMinutes, dnd, dndSchedule, history, genericIcon: gi, currentVersion, updateAvailable, latestVersion }) => {
     currentPresets = presets || [];
     currentServices = services || [];
     currentHistory = history || [];
     currentDndSchedule = dndSchedule || [];
     currentPage = page;
     genericIcon = gi || genericIcon;
+
+    // Software update: no auto-install, just "a newer tag exists on GitHub" (see
+    // main.js checkForUpdate). checkingUpdate is a local-only flag so the button
+    // shows "Checking…" between the click and this next state push.
+    checkingUpdate = false;
+    if ($('version-status')) {
+      $('version-status').textContent = updateAvailable
+        ? `notihub v${currentVersion} (v${latestVersion} available)`
+        : `notihub v${currentVersion} — up to date`;
+    }
+    if ($('update-banner')) $('update-banner').hidden = !updateAvailable;
+    if ($('update-status') && updateAvailable) $('update-status').textContent = `Version ${latestVersion} is available (you have ${currentVersion}).`;
 
     $('welcome').hidden = page !== 'welcome';
     $('services').hidden = page !== 'services';

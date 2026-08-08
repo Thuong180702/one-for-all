@@ -201,6 +201,7 @@
     -webkit-app-region: no-drag;
   }
   .icon-btn {
+    position: relative;
     width: 28px;
     height: 26px;
     padding: 0;
@@ -208,6 +209,9 @@
     border-radius: 6px;
     font-size: 14px;
   }
+  /* Same dot language as the per-tab connection status — an update is just
+     another "something needs your attention" signal, not a new visual system. */
+  .icon-btn .status-dot { right: 2px; bottom: 2px; }
 </style>
 </head>
 <body>
@@ -317,6 +321,14 @@
     const settingsBtn = document.getElementById('settings');
     settingsBtn.ariaSelected = String(isSetupOpen && setupPage === 'settings');
     settingsBtn.onclick = () => window.__tabs.openSettings();
+    settingsBtn.title = data.updateAvailable ? `Settings — update available (v${data.latestVersion})` : 'Settings';
+    const existingDot = settingsBtn.querySelector('.status-dot');
+    if (existingDot) existingDot.remove();
+    if (data.updateAvailable) {
+      const dot = document.createElement('span');
+      dot.className = 'status-dot stale'; // reuse the amber "needs attention" color
+      settingsBtn.append(dot);
+    }
   });
 </script>
 </body>

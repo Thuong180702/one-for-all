@@ -399,6 +399,9 @@ function renderSetup() {
     // an unpackaged run has no login item to read, so fall back to what config says
     openAtLogin: app.isPackaged ? app.getLoginItemSettings().openAtLogin : !!cfg.startAtLogin,
     genericIcon: DATA_URIS.generic,
+    currentVersion: app.getVersion(),
+    updateAvailable: !!latestRelease,
+    latestVersion: latestRelease?.version || null,
   });
 }
 
@@ -1042,6 +1045,8 @@ function renderTabs() {
     activeId: active,
     activeService: activeEntry?.service?.name || '',
     genericIcon: DATA_URIS.generic,
+    updateAvailable: !!latestRelease,
+    latestVersion: latestRelease?.version || null,
   });
 }
 
@@ -1168,6 +1173,58 @@ function buildAppMenu() {
   ]));
 }
 
+/* ------------------------------------------------------------- update check */
+
+// Manual/notify-only — no download, no install. Just: is there a newer tag on
+// GitHub than the version this build shipped with, and if so, tell the user
+// where to get it. See README/RELEASE notes for why auto-install isn't wired
+// up yet (ad-hoc signing has no stable identity for Squirrel.Mac to trust).
+const UPDATE_REPO = 'Thuong180702/notihub';
+let latestRelease = null; // { version, url } once a newer tag is confirmed, else null
+
+function compareVersions(a, b) {
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const da = pa[i] || 0, db = pb[i] || 0;
+    if (da !== db) return da > db ? 1 : -1;
+  }
+  return 0;
+}
+
+function checkForUpdate() {
+  const req = net.request({ method: 'GET', url: `https://api.github.com/repos/${UPDATE_REPO}/releases/latest` });
+  // The GitHub API rejects requests with no User-Agent at all.
+  req.setHeader('User-Agent', 'notihub-update-checker');
+  req.setHeader('Accept', 'application/vnd.github+json');
+  req.on('response', (res) => {
+    const chunks = [];
+    res.on('data', (c) => chunks.push(c));
+    res.on('end', () => {
+      try {
+        const data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        const tag = String(data.tag_name || '').replace(/^v/, '');
+        const isNewer = tag && /^\d+\.\d+\.\d+$/.test(tag) && compareVersions(tag, app.getVersion()) > 0;
+        latestRelease = isNewer
+          ? { version: tag, url: data.html_url || `https://github.com/${UPDATE_REPO}/releases/tag/v${tag}` }
+          : null;
+        dbg(`update check: current=${app.getVersion()} latest=${tag || '?'} updateAvailable=${isNewer}`);
+      } catch (err) {
+        dbg(`update check: bad response (${err.message})`);
+      }
+      renderTabs();
+      renderSetup();
+    });
+  });
+  req.on('error', (err) => dbg(`update check failed: ${err.message}`));
+  req.end();
+}
+
+ipcMain.on('ofa:check-update', checkForUpdate);
+ipcMain.on('ofa:open-release', () => {
+  if (latestRelease) shell.openExternal(latestRelease.url);
+});
+
 /* ---------------------------------------------------------------- lifecycle */
 
 app.whenReady().then(() => {
@@ -1254,6 +1311,12 @@ app.whenReady().then(() => {
   powerMonitor.on('resume', reloadAll);
   setInterval(watchdogTick, 60000);
   watchConfig();
+
+  // Delayed so it never competes with startup, then every 6h — this app is meant
+  // to stay running for days, and someone who never quits it should still find
+  // out about a new release without having to think to check GitHub themselves.
+  setTimeout(checkForUpdate, 10000);
+  setInterval(checkForUpdate, 6 * 3600000);
 
   fs.writeFileSync(PIDFILE, String(process.pid));
   // Unpackaged dev runs can't register a login item ("Operation not permitted").

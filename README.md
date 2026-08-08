@@ -41,6 +41,7 @@ Browsers like Chrome and Safari aggressively throttle background tabs, causing m
 - 🛠️ **Automatic Crash Recovery**: A crashed or hung renderer reloads itself with exponential backoff, instead of sitting on a blank tab until you notice and restart it yourself.
 - 🎯 **Per-Service Notification Filters & Scheduled DND**: Regex-based Priority / Allow / Deny rules per service, plus a full quiet-hours schedule editor (day-of-week + time windows) — all from Settings, no `config.json` editing required.
 - 🛡️ **Private & Open Source**: No tracking, no telemetry, no notihub-run servers — every service loads directly from its own site. One exception: service icons (presets and custom URLs alike) are resolved via Google's public favicon API for accuracy and reliability, until a service's own page reports its real favicon.
+- 🔔 **Update Notifications**: notihub checks GitHub Releases in the background and flags a new version with an amber dot on the Settings icon — no silent auto-install (see below), just a heads-up and a link to the release.
 
 ---
 
@@ -82,6 +83,10 @@ npm install
 npm run build
 cp -R dist/notihub.app /Applications/
 ```
+
+### Staying Updated
+
+notihub checks for new releases in the background and flags one with an amber dot on the Settings icon, but **does not auto-install** — macOS's update mechanism (Squirrel.Mac) requires a stable code-signing identity to trust a downloaded update, which ad-hoc signing (no paid Apple Developer ID yet) doesn't provide. Reinstall via any method above when notified.
 
 ---
 
