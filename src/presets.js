@@ -3,7 +3,7 @@
 // the rendered Add Services grid), so accuracy wins over the minor privacy upside of
 // not querying Google's favicon API for presets the user hasn't added yet. DATA_URIS
 // is still used as the <img onerror> fallback and for the generic/no-favicon case.
-const { getFaviconUrl } = require('./icons');
+const { getFaviconUrl, DATA_URIS } = require('./icons');
 
 // Known services, for `ofa add <id>`. PRs adding rows here are welcome.
 module.exports = {
@@ -16,6 +16,10 @@ module.exports = {
   slack: { name: 'Slack', url: 'https://app.slack.com/client', icon: getFaviconUrl('https://app.slack.com/client') },
   discord: { name: 'Discord', url: 'https://discord.com/app', icon: getFaviconUrl('https://discord.com/app') },
   telegram: { name: 'Telegram', url: 'https://web.telegram.org/', icon: getFaviconUrl('https://web.telegram.org/') },
-  whatsapp: { name: 'WhatsApp', url: 'https://web.whatsapp.com/', icon: getFaviconUrl('https://web.whatsapp.com/') },
+  // Exception to the favicon-first rule above: Google's favicon service has no real
+  // icon for web.whatsapp.com (404s to a blurry 16x16 placeholder globe) and only a
+  // 23x23 one for the whatsapp.com root — worse than every other preset here. The
+  // bundled hand-drawn SVG is the sharper, more accurate result for this one brand.
+  whatsapp: { name: 'WhatsApp', url: 'https://web.whatsapp.com/', icon: DATA_URIS.whatsapp },
 };
 
