@@ -64,12 +64,20 @@ brew tap thuong180702/notihub
 brew install --cask notihub
 ```
 
-### Method 2: Direct App Download
+### Method 2: Via npm (CLI companion)
+
+```bash
+npm install -g @thuong180702/notihub
+```
+
+Installs the `notihub` CLI (`notihub add`, `notihub list`, `notihub notify`, …). Pair it with Method 1 above for the packaged app — macOS blocks notifications from an unpackaged Electron run, so without the Homebrew cask installed the CLI falls back to a dev-mode Electron window that can't notify.
+
+### Method 3: Direct App Download
 
 1. Download the latest release package from [GitHub Latest Releases](https://github.com/Thuong180702/notihub/releases/latest).
 2. Unzip and drag `notihub.app` into your `/Applications` directory.
 
-### Method 3: Build from Source
+### Method 4: Build from Source
 
 ```bash
 git clone https://github.com/Thuong180702/notihub.git

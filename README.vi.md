@@ -61,12 +61,20 @@ brew tap thuong180702/notihub
 brew install --cask notihub
 ```
 
-### Cách 2: Tải Trực Tiếp Bản Build `.app`
+### Cách 2: Qua npm (CLI đi kèm)
+
+```bash
+npm install -g @thuong180702/notihub
+```
+
+Cài CLI `notihub` (`notihub add`, `notihub list`, `notihub notify`, …). Nên dùng kèm Cách 1 ở trên để có bản app đóng gói — macOS chặn thông báo từ Electron chạy chưa đóng gói, nên nếu chưa cài cask Homebrew, CLI sẽ fallback về cửa sổ Electron dev-mode không gửi được thông báo.
+
+### Cách 3: Tải Trực Tiếp Bản Build `.app`
 
 1. Tải bản nén mới nhất từ [GitHub Latest Releases](https://github.com/Thuong180702/notihub/releases/latest).
 2. Giải nén và kéo file `notihub.app` vào thư mục `/Applications`.
 
-### Cách 3: Biên Dịch Từ Mã Nguồn (Source)
+### Cách 4: Biên Dịch Từ Mã Nguồn (Source)
 
 ```bash
 git clone https://github.com/Thuong180702/notihub.git
