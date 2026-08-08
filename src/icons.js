@@ -84,7 +84,12 @@ function getFaviconUrl(target) {
     if (target.startsWith('http://') || target.startsWith('https://')) {
       hostname = new URL(target).hostname;
     }
-    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`;
+    // sz=64 measured as low as 16x16 actually delivered for some sites (Google
+    // returns whatever real favicon exists up to this size, never upscaled) —
+    // shown at 36px CSS / 72px on Retina, that's a 4.5x stretch. Asking for 128
+    // gets the sharpest source image available; sites whose own favicon truly
+    // tops out smaller than that are a source-side limit no sz value fixes.
+    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=128`;
   } catch {
     return null;
   }
@@ -93,7 +98,13 @@ function getFaviconUrl(target) {
 const fs = require('fs');
 const path = require('path');
 
-const LOGO_PATH = path.join(__dirname, 'Logo.png');
+// Logo.png is kept at 1024x1024 for icon.js's .icns build (macOS wants that
+// much for a crisp Dock/Finder icon). This is the same artwork downscaled to
+// 128x128 — the app never displays it above ~54px CSS (108px @2x) — because
+// base64-embedding the full-res original here meant every renderSetup()/
+// renderTabs() IPC call (fired on nearly every state change) was shipping a
+// ~1.3MB string just for a fallback icon nobody sees at that size.
+const LOGO_PATH = path.join(__dirname, 'Logo-icon.png');
 let logoDataUri = null;
 try {
   if (fs.existsSync(LOGO_PATH)) {

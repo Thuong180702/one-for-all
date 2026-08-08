@@ -10,6 +10,10 @@ assert.strictEqual(parseUnread('Inbox (12) - me@gmail.com - Gmail'), 12);
 assert.strictEqual(parseUnread('(9+) Slack'), 9);
 assert.strictEqual(parseUnread('Messenger'), 0);
 assert.strictEqual(parseUnread(undefined), 0);
+// a parenthesized year or version number must not be mistaken for an unread count
+assert.strictEqual(parseUnread('Report (2023) - Docs'), 0);
+assert.strictEqual(parseUnread('Q4 Plan (2024).pdf'), 0);
+assert.strictEqual(parseUnread('(999) Inbox'), 999);
 
 const cfg = { dnd: false };
 const svc = withDefaults({ services: [{ id: 'x', name: 'X' }] }).services[0];

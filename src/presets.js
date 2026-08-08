@@ -1,3 +1,8 @@
+// getFaviconUrl(), not the bundled SVG art in icons.js: the hand-drawn approximations
+// there don't actually match each brand's real logo closely enough (confirmed against
+// the rendered Add Services grid), so accuracy wins over the minor privacy upside of
+// not querying Google's favicon API for presets the user hasn't added yet. DATA_URIS
+// is still used as the <img onerror> fallback and for the generic/no-favicon case.
 const { getFaviconUrl } = require('./icons');
 
 // Known services, for `ofa add <id>`. PRs adding rows here are welcome.

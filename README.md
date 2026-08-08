@@ -9,7 +9,7 @@
 [![Homebrew](https://img.shields.io/badge/homebrew-cask-orange?style=flat-macro&logo=homebrew)](https://github.com/Thuong180702/notihub)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-*Turn all your web messaging & productivity tools (**Messenger, Zalo, Gmail, Slack, Telegram, WhatsApp**) into high-performance, native macOS desktop apps with instant notifications, real web favicons, and zero background battery drain.*
+*Turn all your web messaging & productivity tools (**Messenger, Zalo, Gmail, Slack, Telegram, WhatsApp**) into high-performance, native macOS desktop apps with instant notifications and real web favicons — each one kept alive in the background so you never miss a message.*
 
 [English](README.md) • [Tiếng Việt](README.vi.md)
 
@@ -33,22 +33,24 @@ Browsers like Chrome and Safari aggressively throttle background tabs, causing m
 - 🎯 **Deep-Link Thread Jump**: Clicking a notification opens the exact conversation thread or email message, not just the generic inbox.
 - 🌐 **Real Web Favicons & Custom Web Apps**: Automatic high-res favicon extraction for all presets and custom web URLs with sleek custom web app creation.
 - 🎛️ **Per-Service Controls & Context Menu**: Right-click tabs to Mute/Unmute notifications, toggle unread badges, reload, or tweak per-service settings.
-- 💤 **Smart RAM Auto-Sleep Watchdog**: Automatically unloads memory for background tabs after N idle minutes without missing unread messages.
+- 💤 **Smart RAM Auto-Sleep Watchdog**: Automatically unloads memory for background tabs after N idle minutes. The service reconnects the instant you switch back — note that a sleeping tab won't notify you until then.
 - 💎 **Modern Glassmorphic Interface**: Sleek translucent design, custom brand tile cards, instant search filtering, and smooth transitions.
 - 🔒 **Multi-Account & Isolated Sessions**: Log into multiple accounts (`notihub add messenger --as work`) without cookie interference.
 - ⚡ **Minimal Mode Support**: Run purely in the background via Notification Center & Tray with zero visible webviews.
-- 🛡️ **100% Private & Open Source**: No tracking, no external proxy servers, no telemetry. Everything stays local on your Mac.
+- 🚦 **Live Connection Status**: A quiet dot on each tab turns amber then red the longer a service goes without any network activity, and flags it outright if the page looks logged out — so a dead connection never looks identical to "no new messages."
+- 🛠️ **Automatic Crash Recovery**: A crashed or hung renderer reloads itself with exponential backoff, instead of sitting on a blank tab until you notice and restart it yourself.
+- 🎯 **Per-Service Notification Filters & Scheduled DND**: Regex-based Priority / Allow / Deny rules per service, plus a full quiet-hours schedule editor (day-of-week + time windows) — all from Settings, no `config.json` editing required.
+- 🛡️ **Private & Open Source**: No tracking, no telemetry, no notihub-run servers — every service loads directly from its own site. One exception: service icons (presets and custom URLs alike) are resolved via Google's public favicon API for accuracy and reliability, until a service's own page reports its real favicon.
 
 ---
 
 ## ⚡ Minimal Mode & RAM Optimization
 
-`notihub` is built from the ground up for maximum resource efficiency. Beyond standard tab management, it offers a dedicated **Minimal Mode**:
+`notihub` offers a few opt-in ways to trade some responsiveness for a lighter footprint — worth knowing the actual trade-off before you flip them:
 
-- 🚀 **Zero-UI Background Notification Daemon**: When switched to **Minimal Mode**, the main tab bar and heavy webview windows stay hidden. The app operates as an ultra-lightweight background notification router, consuming up to **80% less RAM**.
-- 📋 **Integrated Notification History Board**: In Minimal Mode, clicking the Tray icon or global hotkey opens a sleek **Notification History Board** showing recent messages with brand icons, timestamps, and one-click deep-link jumps.
-- 💤 **Customizable Idle Sleep Watchdog**: Set inactive tabs to auto-sleep after 5m, 10m, 15m, 30m, 60m, or custom duration. Sleeping tabs unload memory entirely until you switch back to them, while keeping unread counters 100% active.
-- 🔋 **Battery-Friendly Throttling**: Pauses unnecessary DOM animations and canvas rendering on background webviews without dropping socket connections.
+- 📋 **Minimal Mode**: Hides the tab bar and jumps straight to a **Notification History Board** (opened via the Tray icon or global hotkey) instead of the full web-app UI. Skips the tab-bar's renderer process entirely (~30MB measured) since Minimal Mode has no tabs to show. Services themselves still stay fully loaded underneath so delivery stays real-time — Electron has no Web Push API, so there's no way to receive messages without a service's page actually running.
+- 💤 **Idle Sleep Watchdog**: Set inactive tabs to auto-sleep after 5m, 10m, 15m, 30m, 60m, or a custom duration. A sleeping tab unloads its page and genuinely frees memory, but its connection drops with it — you won't get notifications from that service until you switch back to it (which reloads and reconnects instantly).
+- 🔋 **RAM Optimization (background throttling)**: Reduces CPU/timer activity on background tabs. It's **off by default** because throttling a tab's timers can pause the very socket that keeps a hidden chat connected — turn it on only if you're fine with background services checking in less often.
 
 ---
 
@@ -138,13 +140,25 @@ Edit `~/Library/Application Support/notihub/config.json` directly for fine-grain
   "startAtLogin": true,
   "windowMode": "window",        // "window" | "menubar"
   "appMode": "normal",           // "normal" (full UI) | "minimal" (notifications only)
-  "ramOptimization": true,       // background memory throttling
+  "ramOptimization": false,      // throttles background tabs; off by default, can delay reconnects
   "idleSleepMinutes": 30,        // auto-sleep idle background tabs after 30 mins
   "dndSchedule": [
     { "from": "22:00", "to": "08:00", "days": [1,2,3,4,5] }
+  ],
+  "services": [
+    {
+      "id": "messenger",
+      "notify": {
+        "priority": ["urgent|boss"],   // always notifies, bypasses DND
+        "allow": [],                   // if non-empty, only matches notify
+        "deny": ["reacted to your message"]
+      }
+    }
   ]
 }
 ```
+
+All three (`dndSchedule`, per-service `notify` rules, and the manual DND toggle) are also editable from **Settings** directly — this is only needed for bulk edits or scripting.
 
 ---
 

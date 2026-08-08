@@ -58,14 +58,17 @@
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    padding: 32px 24px;
+    padding: 28px 32px;
     background: var(--bg);
     color: var(--fg);
     font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif;
     user-select: none;
   }
 
-  .wrap { max-width: 640px; margin: 0 auto; }
+  /* Was a fixed 640px — wasted ~40% of the default 1100px window width while
+     Settings ran to 2.5 screens of vertical scroll. Now uses the room it has,
+     capped so lines of text don't get uncomfortably wide on a maximized window. */
+  .wrap { max-width: 880px; margin: 0 auto; }
 
   h1 {
     margin: 0 0 6px;
@@ -80,6 +83,7 @@
     text-transform: uppercase;
     letter-spacing: .06em;
     color: var(--fg-dim);
+    scroll-margin-top: 54px; /* clears the sticky settings-nav on jump */
   }
   p { margin: 0 0 18px; color: var(--fg-dim); font-size: 13.5px; }
 
@@ -162,13 +166,59 @@
 
   .done { color: var(--ok); font-weight: 600; white-space: nowrap; font-size: 13px; }
 
+  /* Real on/off switch — used for every plain boolean setting (Background
+     Throttling, Do Not Disturb Now, Start at Login, per-service prefs) so the
+     control's own position communicates state, instead of mixing "Turn on"
+     (an instruction) and "Enabled" (a status) across different buttons. */
+  .switch {
+    position: relative;
+    width: 42px;
+    height: 25px;
+    padding: 0;
+    border-radius: 13px;
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 19px;
+    height: 19px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    transition: transform 0.15s ease;
+  }
+  .switch[aria-checked="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .switch[aria-checked="true"]::after { transform: translateX(17px); }
+
+  .icon { display: inline-flex; flex-shrink: 0; }
+  .icon svg { display: block; }
+
   /* Search & Service Grid */
   .search-box {
+    position: relative;
     margin-bottom: 14px;
   }
-  .search-box input {
+  .search-box .icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--fg-dim);
+    pointer-events: none;
+  }
+  /* [type="text"] matched to out-specificity the later, equal-specificity
+     `input[type="text"]` rule (form#custom's) that was silently winning the
+     padding-left back to 13px because it came later in the cascade. */
+  .search-box input[type="text"] {
     width: 100%;
-    padding: 9px 14px;
+    padding: 9px 14px 9px 34px;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: var(--card);
@@ -178,10 +228,44 @@
     outline: none;
     transition: border-color 0.15s ease;
   }
-  .search-box input:focus {
+  .search-box input[type="text"]:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
   }
+
+  /* Services page: Browse vs Manage */
+  .sub-nav {
+    display: inline-flex;
+    gap: 4px;
+    padding: 3px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin-bottom: 18px;
+  }
+  .sub-nav button {
+    border: 0;
+    background: transparent;
+    padding: 7px 14px;
+    border-radius: 7px;
+  }
+  .sub-nav button:hover { color: var(--fg); border-color: transparent; }
+  .sub-nav button.active {
+    background: var(--accent);
+    color: #ffffff;
+  }
+  .count-pill {
+    display: inline-block;
+    min-width: 16px;
+    padding: 0 5px;
+    margin-left: 4px;
+    border-radius: 8px;
+    background: rgba(127, 127, 127, 0.25);
+    font-size: 10.5px;
+    line-height: 16px;
+    text-align: center;
+  }
+  .sub-nav button.active .count-pill { background: rgba(255, 255, 255, 0.3); }
 
   .grid {
     display: grid;
@@ -246,10 +330,26 @@
     border-radius: 6px;
     white-space: nowrap;
   }
+  /* Already-added presets get a plain badge, not a second Remove button —
+     that action lives only in the Manage tab now (one control per service). */
+  .tile .added-badge {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ok);
+    white-space: nowrap;
+  }
 
   .status { font-size: 13px; margin: 10px 0 0; }
   .status.ok { color: var(--ok); }
   .status.bad { color: var(--bad); }
+  .status.warn { color: #b8860b; }
+  @media (prefers-color-scheme: dark) { .status.warn { color: #ffb020; } }
+  html[data-theme="dark"] .status.warn { color: #ffb020 !important; }
+  html[data-theme="light"] .status.warn { color: #b8860b !important; }
+
+  .conn-status { display: flex; align-items: center; gap: 6px; font-size: 12.5px; margin: 0; }
+  .conn-status .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
   form#custom {
     display: flex;
@@ -263,7 +363,17 @@
     border-radius: var(--radius);
     box-shadow: var(--shadow);
   }
-  input[type="text"], input[type="url"] {
+  .form-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 13.5px;
+    width: 100%;
+    color: var(--fg);
+    margin-bottom: 2px;
+  }
+  input[type="text"], input[type="url"], input[type="number"], input[type="time"] {
     padding: 9px 13px;
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -275,10 +385,64 @@
     user-select: text;
     transition: all 0.15s ease;
   }
-  input[type="text"]:focus, input[type="url"]:focus {
+  input[type="text"]:focus, input[type="url"]:focus, input[type="number"]:focus, input[type="time"]:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
   }
+  input[type="time"] { padding: 7px 10px; }
+
+  /* Do Not Disturb schedule rows */
+  .dnd-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .dnd-arrow { color: var(--fg-dim); font-size: 12px; }
+  .day-btn {
+    padding: 5px 8px;
+    font-size: 11px;
+    min-width: 26px;
+  }
+  .day-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #ffffff;
+  }
+
+  /* Per-service preference switches (sound / badge / title fallback) */
+  .pref-row {
+    padding: 7px 0;
+  }
+  .pref-row .text { min-width: 0; }
+  .pref-row .text b { font-size: 13px; font-weight: 500; }
+  .service-card > .pref-row:not(:last-child),
+  .service-card > .pref-list > .pref-row:not(:last-child) {
+    border-bottom: 1px solid var(--line);
+  }
+
+  /* Per-service notification filters */
+  .filters {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+  .filters-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .filter-row { display: flex; align-items: center; gap: 8px; }
+  .filter-row span { font-size: 12px; color: var(--fg-dim); width: 52px; flex-shrink: 0; }
+  .filter-row input { flex: 1; min-width: 0; }
   #custom-name {
     width: 170px;
     flex-shrink: 0;
@@ -292,6 +456,37 @@
   .hint { font-size: 12px; color: var(--fg-dim); }
   [hidden] { display: none !important; }
 
+  /* Settings section nav — sticky so a 6-group, 2.5-screen-tall page is
+     reachable in one click instead of blind scrolling. */
+  .settings-nav {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 0;
+    margin: 0 0 8px;
+    background: var(--bg);
+  }
+  .settings-nav button {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 7px;
+  }
+  .settings-nav button.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #ffffff;
+  }
+
+  #welcome:not([hidden]) {
+    display: flex;
+    align-items: center;
+    min-height: calc(100vh - 56px);
+  }
+  #welcome .welcome-inner { width: 100%; }
+
   /* History list items */
   .history-card {
     display: flex;
@@ -303,30 +498,72 @@
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     margin-bottom: 10px;
+    transition: border-color 0.15s ease;
+  }
+  .history-card[data-clickable='true']:hover { border-color: var(--accent); }
+  .history-card[data-clickable='true']:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: var(--shadow), 0 0 0 3px rgba(10, 132, 255, 0.25);
   }
   .history-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
     object-fit: contain;
     flex-shrink: 0;
     margin-top: 2px;
   }
   .history-content { flex: 1; min-width: 0; }
-  .history-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .history-header { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-bottom: 3px; }
+  .history-service { font-size: 11px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: .03em; }
   .history-title { font-weight: 600; font-size: 13.5px; color: var(--fg); }
-  .history-time { font-size: 11px; color: var(--fg-dim); white-space: nowrap; }
+  .history-time { font-size: 11px; color: var(--fg-dim); white-space: nowrap; margin-left: auto; }
   .history-body { font-size: 12.5px; color: var(--fg-dim); word-break: break-word; }
-  .history-action { margin-top: 8px; }
-  .history-action button { padding: 4px 10px; font-size: 11.5px; }
+
+  /* Standalone header: only rendered in Minimal Mode, where main.js skips
+     tabsView entirely (a whole extra renderer process for a 34px strip that,
+     in that mode, only ever showed this one toggle anyway) and this page owns
+     the full window instead. Kept visually close to tabsView's own bar so
+     switching modes doesn't feel like a different app. */
+  #standalone-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 34px;
+    padding: 0 8px;
+    margin: -28px -32px 20px;
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+  }
+  #standalone-header button {
+    height: 26px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--fg-dim);
+    font: inherit;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #standalone-header button:hover { background: var(--line); color: var(--fg); }
+  #standalone-header button[aria-selected='true'] { background: var(--line); color: var(--fg); font-weight: 500; }
 </style>
 </head>
 <body>
+  <div id="standalone-header" hidden>
+    <button id="standalone-notifications"></button>
+    <button id="standalone-settings" title="Settings">⚙️</button>
+  </div>
   <div class="wrap">
     <!-- page 1: permissions -->
     <section id="welcome" hidden>
+      <div class="welcome-inner">
       <div style="display:flex; align-items:center; gap:16px; margin-bottom:18px;">
-        <img id="app-logo-img" src="Logo.png" alt="notihub logo" style="width:54px; height:54px; border-radius:14px; object-fit:contain; box-shadow: var(--shadow);" />
+        <img id="app-logo-img" src="Logo-icon.png" alt="notihub logo" style="width:54px; height:54px; border-radius:14px; object-fit:contain; box-shadow: var(--shadow);" />
         <div>
           <h1 style="margin:0;">Welcome to notihub</h1>
           <p style="margin:4px 0 0;">All-in-one native macOS Notification Hub</p>
@@ -354,16 +591,16 @@
         <div class="row">
           <div class="text">
             <b>Launch at Login</b>
-            <span>Automatically launch notihub when starting your Mac to receive notifications instantly.</span>
+            <span>Start notihub automatically so you never miss a notification.</span>
           </div>
-          <button id="login-item">Turn on</button>
-          <span class="done" id="login-done" hidden>✓ Enabled</span>
+          <button class="switch" id="login-item" role="switch" aria-checked="false"></button>
         </div>
       </div>
 
       <div class="foot">
         <button class="primary" id="continue">Continue</button>
         <button class="link" id="skip">Skip for now</button>
+      </div>
       </div>
     </section>
 
@@ -372,24 +609,36 @@
       <h1>Add Services</h1>
       <p>Select messaging & productivity web apps to receive native macOS notifications.</p>
 
-      <div class="search-box">
-        <input id="preset-search" type="text" placeholder="🔍 Search services (Messenger, Zalo, Gmail...)" />
+      <div class="sub-nav" id="services-subnav">
+        <button id="services-tab-browse">Browse</button>
+        <button id="services-tab-manage">Manage <span class="count-pill" id="services-tab-count">0</span></button>
       </div>
 
-      <div class="grid" id="grid"></div>
+      <div id="services-panel-browse">
+        <div class="search-box">
+          <span class="icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+          <input id="preset-search" type="text" placeholder="Search services (Messenger, Zalo, Gmail...)" />
+        </div>
 
-      <form id="custom">
-        <div style="font-weight: 600; font-size: 13.5px; width: 100%; color: var(--fg); margin-bottom: 2px;">➕ Add Custom Web App</div>
-        <input id="custom-name" type="text" placeholder="App Name (e.g. ChatGPT)" />
-        <input id="url" type="url" placeholder="https://chat.openai.com/..." required />
-        <button class="primary" type="submit">Add Web App</button>
-      </form>
-      <p class="hint" style="margin-top:10px">
-        Log in once inside the tab — your session and cookies are saved automatically.
-      </p>
+        <div class="grid" id="grid"></div>
 
-      <h2>Active Service Settings</h2>
-      <div id="managed-services-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+        <form id="custom">
+          <div class="form-title">
+            <span class="icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+            Add Custom Web App
+          </div>
+          <input id="custom-name" type="text" placeholder="App Name (e.g. ChatGPT)" />
+          <input id="url" type="url" placeholder="https://chat.openai.com/..." required />
+          <button class="primary" type="submit">Add Web App</button>
+        </form>
+        <p class="hint" style="margin-top:10px">
+          Log in once inside the tab — your session and cookies are saved automatically.
+        </p>
+      </div>
+
+      <div id="services-panel-manage" hidden>
+        <div id="managed-services-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+      </div>
 
       <div class="foot">
         <button id="done" class="primary" hidden>Done</button>
@@ -401,14 +650,23 @@
     <!-- page 3: settings (⚙️) -->
     <section id="settings" hidden>
       <h1>Settings</h1>
-      <p>Manage permissions, operating modes, performance optimizations, and system startup.</p>
+      <p>Manage permissions, operating modes, performance, and startup.</p>
 
-      <h2>Permissions</h2>
+      <div class="settings-nav" id="settings-nav">
+        <button data-target="sec-permissions">Permissions</button>
+        <button data-target="sec-appearance">Appearance</button>
+        <button data-target="sec-modes">Modes</button>
+        <button data-target="sec-performance">Performance</button>
+        <button data-target="sec-dnd">Do Not Disturb</button>
+        <button data-target="sec-startup">Startup</button>
+      </div>
+
+      <h2 id="sec-permissions">Permissions</h2>
       <div class="step">
         <div class="row">
           <div class="text">
             <b>Notifications Permission</b>
-            <span>macOS asks once to send banner notifications. Without it, messages arrive silently without popups.</span>
+            <span title="macOS asks once to send banner notifications. Without it, messages arrive silently without popups.">Required to show banners for new messages.</span>
           </div>
           <button class="primary" id="settings-allow">Allow Notifications</button>
           <span class="done" id="settings-allow-done" hidden>✓ Allowed</span>
@@ -421,31 +679,31 @@
         </p>
       </div>
 
-      <h2>Appearance & Theme</h2>
+      <h2 id="sec-appearance">Appearance</h2>
       <div class="step">
         <div class="row">
           <div class="text">
-            <b>Theme Appearance</b>
-            <span>System: Follow macOS setting. Dark: Modern dark glass. Light: Clean bright theme.</span>
+            <b>Theme</b>
+            <span title="System: follow macOS setting. Dark: modern dark glass. Light: clean bright theme.">Match your Mac, or force dark / light.</span>
           </div>
           <div class="controls">
-            <button id="theme-system" class="primary">💻 System</button>
-            <button id="theme-dark">🌙 Dark</button>
-            <button id="theme-light">☀️ Light</button>
+            <button id="theme-system" class="primary"><span class="icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1"/><line x1="2" y1="20" x2="22" y2="20"/></svg></span>System</button>
+            <button id="theme-dark"><span class="icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg></span>Dark</button>
+            <button id="theme-light"><span class="icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.2" y1="4.2" x2="5.6" y2="5.6"/><line x1="18.4" y1="18.4" x2="19.8" y2="19.8"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.2" y1="19.8" x2="5.6" y2="18.4"/><line x1="18.4" y1="5.6" x2="19.8" y2="4.2"/></svg></span>Light</button>
           </div>
         </div>
       </div>
 
-      <h2>Operating & Window Mode</h2>
+      <h2 id="sec-modes">Modes</h2>
       <div class="step">
         <div class="row">
           <div class="text">
-            <b>App Operating Mode</b>
-            <span>Normal: Full tabs with web views. Minimal: Notification center only, loads UI on demand.</span>
+            <b>App Mode</b>
+            <span title="Normal: full tabs with web views. Minimal: notification center only, loads UI on demand.">Full tabbed view, or notifications-only.</span>
           </div>
           <div class="controls">
-            <button id="mode-normal" class="primary">Normal Mode</button>
-            <button id="mode-minimal">Minimal Mode</button>
+            <button id="mode-normal" class="primary">Normal</button>
+            <button id="mode-minimal">Minimal</button>
           </div>
         </div>
       </div>
@@ -454,7 +712,7 @@
         <div class="row">
           <div class="text">
             <b>Window Mode</b>
-            <span>Standard: Resizable desktop window. Menu Bar: Frameless panel anchored to Mac status bar.</span>
+            <span title="Standard: resizable desktop window. Menu Bar: frameless panel anchored to the Mac status bar.">A normal window, or a menu bar panel.</span>
           </div>
           <div class="controls">
             <button id="winmode-window" class="primary">Standard Window</button>
@@ -467,7 +725,7 @@
         <div class="row">
           <div class="text">
             <b>Global Toggle Hotkey</b>
-            <span>Hotkey combination to quickly show or hide the application window (e.g. Cmd+Shift+Space, Alt+Space, Cmd+Alt+M).</span>
+            <span>Keyboard shortcut to show or hide notihub instantly.</span>
           </div>
           <div class="controls">
             <form id="shortcut-form" style="display:inline-flex; align-items:center; gap:8px; margin:0;">
@@ -479,14 +737,14 @@
         <p class="status" id="shortcut-status" hidden></p>
       </div>
 
-      <h2>Performance & Idle Sleep</h2>
+      <h2 id="sec-performance">Performance & Idle Sleep</h2>
       <div class="step">
         <div class="row">
           <div class="text">
-            <b>RAM Optimization & Background Throttling</b>
-            <span>Saves battery and memory by throttling hidden background tabs.</span>
+            <b>Background Throttling</b>
+            <span title="Reduces CPU use on hidden tabs by slowing their timers. Off by default — throttling can delay the socket that keeps a background chat connected, so notifications may arrive late while it's on.">Saves CPU on hidden tabs — can delay notifications.</span>
           </div>
-          <button id="ram-toggle">Enabled</button>
+          <button class="switch" id="ram-toggle" role="switch" aria-checked="false"></button>
         </div>
       </div>
 
@@ -494,7 +752,7 @@
         <div class="row" style="align-items: flex-start;">
           <div class="text">
             <b>Auto-Sleep Idle Tabs</b>
-            <span>Automatically unloads memory for background tabs with no unread messages after the configured idle duration.</span>
+            <span title="Unloads a background tab's page after the configured idle duration to free memory. Its connection drops too — you won't get notifications from it until you switch back, which reconnects instantly.">Frees memory from idle tabs — pauses their notifications too.</span>
           </div>
         </div>
         <div class="idle-options" style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
@@ -509,18 +767,39 @@
             <button class="primary" type="submit" style="padding: 6px 12px;">Save</button>
           </form>
         </div>
-        <p class="hint" id="idle-status" style="margin: 10px 0 0; font-size: 12.5px; color: var(--accent); font-weight: 500;"></p>
+        <p class="hint" id="idle-status" style="margin: 10px 0 0; font-size: 12.5px; color: var(--accent); font-weight: 500; display:flex; align-items:center; gap:5px;"></p>
       </div>
 
-      <h2>Startup</h2>
+      <h2 id="sec-dnd">Do Not Disturb</h2>
+      <div class="step">
+        <div class="row">
+          <div class="text">
+            <b>Do Not Disturb Now</b>
+            <span>Manually silence all notifications until you turn this back off.</span>
+          </div>
+          <button class="switch" id="dnd-toggle" role="switch" aria-checked="false"></button>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="row" style="align-items: flex-start;">
+          <div class="text">
+            <b>Scheduled Quiet Hours</b>
+            <span title="Automatically silence notifications during recurring windows (e.g. overnight, weekends). Messages matching a service's Priority filter still come through.">Recurring quiet hours — Priority messages still get through.</span>
+          </div>
+        </div>
+        <div id="dnd-schedule-list" style="display:flex; flex-direction:column; gap:10px; margin-top:12px;"></div>
+        <button class="link" id="dnd-add" style="margin-top:10px;">+ Add quiet-hours window</button>
+      </div>
+
+      <h2 id="sec-startup">Startup</h2>
       <div class="step">
         <div class="row">
           <div class="text">
             <b>Start at Login</b>
             <span>Launch notihub automatically when logging into macOS.</span>
           </div>
-          <button id="settings-login-item">Turn on</button>
-          <span class="done" id="settings-login-done" hidden>✓ Enabled</span>
+          <button class="switch" id="settings-login-item" role="switch" aria-checked="false"></button>
         </div>
       </div>
 
@@ -534,8 +813,11 @@
       <h1>Notification History</h1>
       <p>Recent notifications captured across all active services.</p>
 
-      <div class="search-box" style="display:flex; gap:10px;">
-        <input id="history-search" type="text" placeholder="🔍 Search history title or body..." style="flex:1;" />
+      <div style="display:flex; gap:10px;">
+        <div class="search-box" style="flex:1; margin-bottom:0;">
+          <span class="icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+          <input id="history-search" type="text" placeholder="Search history title or body..." />
+        </div>
         <select id="history-filter-svc" style="padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); font: inherit; font-size: 13px;">
           <option value="">All Services</option>
         </select>
@@ -552,14 +834,23 @@
 <script>
   const $ = (id) => document.getElementById(id);
   let genericIcon = ''; // filled in from main on first ofa:setup message
+  let currentPage = 'services';
 
   let currentPresets = [];
   let currentServices = [];
   let searchQuery = '';
+  let servicesSubPage = 'browse';
 
   let currentHistory = [];
   let historySearch = '';
   let historyFilterSvc = '';
+
+  let currentDndSchedule = [];
+  const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  const setSwitch = (id, on) => { if ($(id)) $(id).setAttribute('aria-checked', String(!!on)); };
+  const isSwitchOn = (id) => $(id) && $(id).getAttribute('aria-checked') === 'true';
 
   /* ------------------------------------------------------------ permissions */
   // The welcome page and the settings page each have their own copy of the
@@ -602,7 +893,12 @@
   for (const id of ['open-settings', 'settings-open-notification-settings']) {
     if ($(id)) $(id).onclick = () => window.__setup.openNotificationSettings();
   }
-  $('login-item').onclick = () => window.__setup.setLoginItem(true);
+
+  // Start at Login: a real toggle now — it used to only ever send `true` and
+  // hide itself once on, so there was no way to turn it back off from the UI.
+  for (const id of ['login-item', 'settings-login-item']) {
+    if ($(id)) $(id).onclick = () => window.__setup.setLoginItem(!isSwitchOn(id));
+  }
   $('continue').onclick = () => window.__setup.finishWelcome();
   $('skip').onclick = () => window.__setup.finishWelcome();
 
@@ -622,20 +918,60 @@
     $('custom-name').value = '';
   };
 
+  const setServicesSubPage = (page) => {
+    servicesSubPage = page;
+    $('services-panel-browse').hidden = page !== 'browse';
+    $('services-panel-manage').hidden = page !== 'manage';
+    $('services-tab-browse').className = page === 'browse' ? 'active' : '';
+    $('services-tab-manage').className = page === 'manage' ? 'active' : '';
+  };
+  $('services-tab-browse').onclick = () => setServicesSubPage('browse');
+  $('services-tab-manage').onclick = () => setServicesSubPage('manage');
+
   $('done').onclick = () => window.__setup.close();
   $('back').onclick = () => window.__setup.page('settings');
   $('settings-done').onclick = () => window.__setup.close();
   $('history-clear').onclick = () => window.__setup.clearHistory();
-  $('settings-login-item').onclick = () => window.__setup.setLoginItem(true);
+
+  // Standalone header (Minimal Mode only — see main.js's `standalone` flag):
+  // the only two destinations that matter without a tab strip are the
+  // notification board and Settings, so the settings button doubles as back/forth
+  // between them instead of routing through close() (which, with no tabsView to
+  // return to, falls back to switchTo()-ing a live service — not what "back" means here).
+  $('standalone-notifications').onclick = () => window.__setup.page('history');
+  $('standalone-settings').onclick = () => window.__setup.page(currentPage === 'settings' ? 'history' : 'settings');
 
   $('mode-normal').onclick = () => window.__setup.setAppMode('normal');
   $('mode-minimal').onclick = () => window.__setup.setAppMode('minimal');
   $('winmode-window').onclick = () => window.__setup.setWindowMode('window');
   $('winmode-menubar').onclick = () => window.__setup.setWindowMode('menubar');
-  $('ram-toggle').onclick = () => {
-    const current = $('ram-toggle').dataset.enabled === 'true';
-    window.__setup.setRamOptimization(!current);
+  $('ram-toggle').onclick = () => window.__setup.setRamOptimization(!isSwitchOn('ram-toggle'));
+  $('dnd-toggle').onclick = () => window.__setup.setDnd(!isSwitchOn('dnd-toggle'));
+  $('dnd-add').onclick = () => {
+    window.__setup.setDndSchedule([...currentDndSchedule, { from: '22:00', to: '08:00', days: [1, 2, 3, 4, 5] }]);
   };
+
+  // Settings section nav: jump-to-anchor + highlight the section in view.
+  // behavior:'smooth' measured as a no-op in testing (scrollY never moved,
+  // no error either) — 'auto' verified to jump correctly every time, so this
+  // sticky nav's whole reason to exist doesn't depend on an animation that
+  // may silently not run in every renderer.
+  const settingsSections = [...document.querySelectorAll('#settings-nav button')];
+  for (const btn of settingsSections) {
+    btn.onclick = () => $(btn.dataset.target).scrollIntoView({ behavior: 'auto', block: 'start' });
+  }
+  if ('IntersectionObserver' in window) {
+    const obs = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const btn = settingsSections.find((b) => b.dataset.target === entry.target.id);
+        if (!btn) continue;
+        settingsSections.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+    }, { rootMargin: '-56px 0px -70% 0px' });
+    document.querySelectorAll('#settings h2').forEach((h) => obs.observe(h));
+  }
 
   // Custom Global Shortcut form
   if ($('shortcut-form')) {
@@ -656,7 +992,7 @@
         el.textContent = `✓ Global hotkey updated to "${shortcut}"`;
       } else {
         el.className = 'status bad';
-        el.textContent = `❌ ${err || 'Invalid or busy shortcut key combination'}`;
+        el.textContent = err || 'Invalid or busy shortcut key combination';
       }
     });
   }
@@ -729,15 +1065,41 @@
       sub.textContent = isAdded ? 'Added' : 'Available';
       text.append(sub);
 
-      // Button
-      const act = document.createElement('button');
-      act.className = isAdded ? 'danger' : 'primary';
-      act.textContent = isAdded ? 'Remove' : 'Add';
-      act.onclick = () => (isAdded ? window.__setup.remove(p.id) : window.__setup.add({ preset: p.id }));
+      tile.append(img, text);
 
-      tile.append(img, text, act);
+      if (isAdded) {
+        // Removing lives in the Manage tab now — one place per service, not two.
+        const badge = document.createElement('span');
+        badge.className = 'added-badge';
+        badge.textContent = '✓ Added';
+        tile.append(badge);
+      } else {
+        const act = document.createElement('button');
+        act.className = 'primary';
+        act.textContent = 'Add';
+        act.onclick = () => window.__setup.add({ preset: p.id });
+        tile.append(act);
+      }
+
       grid.append(tile);
     }
+  }
+
+  function prefRow(label, checked, onToggle) {
+    const row = document.createElement('div');
+    row.className = 'row pref-row';
+    const text = document.createElement('div');
+    text.className = 'text';
+    const b = document.createElement('b');
+    b.textContent = label;
+    text.append(b);
+    const sw = document.createElement('button');
+    sw.className = 'switch';
+    sw.setAttribute('role', 'switch');
+    sw.setAttribute('aria-checked', String(checked));
+    sw.onclick = () => onToggle(!checked);
+    row.append(text, sw);
+    return row;
   }
 
   function renderManagedServices() {
@@ -755,7 +1117,7 @@
 
     for (const s of currentServices) {
       const card = document.createElement('div');
-      card.className = 'step';
+      card.className = 'step service-card';
       card.style.display = 'flex';
       card.style.flexDirection = 'column';
       card.style.gap = '10px';
@@ -783,34 +1145,72 @@
 
       topRow.append(img, text, removeBtn);
 
-      // Controls row
-      const ctrls = document.createElement('div');
-      ctrls.style.display = 'flex';
-      ctrls.style.flexWrap = 'wrap';
-      ctrls.style.gap = '8px';
-      ctrls.style.alignItems = 'center';
-      ctrls.style.marginTop = '4px';
+      // Connection status: the whole app's premise is "you'll be notified", so
+      // whether this tab is actually still connected is worth surfacing directly
+      // rather than leaving it to guesswork if nothing arrives for a while.
+      const STATUS_INFO = {
+        live: { dot: 'var(--ok)', cls: 'ok', text: 'Connected' },
+        stale: { dot: '#ffb020', cls: 'warn', text: 'Quiet for a while — may have missed something' },
+        dead: { dot: 'var(--bad)', cls: 'bad', text: 'Not receiving updates — try reloading' },
+        login: { dot: 'var(--bad)', cls: 'bad', text: 'Needs sign-in — won’t notify until logged in' },
+        asleep: { dot: 'var(--fg-dim)', cls: '', text: 'Sleeping to save memory' },
+        unknown: { dot: 'var(--fg-dim)', cls: '', text: 'Disabled or not yet loaded' },
+      };
+      const info = STATUS_INFO[s.status];
+      let statusLine = null;
+      if (info) {
+        statusLine = document.createElement('p');
+        statusLine.className = 'conn-status status ' + info.cls;
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        dot.style.background = info.dot;
+        statusLine.append(dot, document.createTextNode(info.text));
+      }
 
-      // Mute Toggle
-      const muteBtn = document.createElement('button');
-      muteBtn.className = s.muted ? 'danger' : 'primary';
-      muteBtn.textContent = s.muted ? '🔇 Muted' : '🔊 Sound Active';
-      muteBtn.onclick = () => window.__setup.updateService(s.id, { muted: !s.muted });
+      // Sound / Badge / Title Fallback — real switches, one row each.
+      const prefs = document.createElement('div');
+      prefs.className = 'pref-list';
+      prefs.style.marginTop = '2px';
+      prefs.append(
+        prefRow('Sound', !s.muted, (on) => window.__setup.updateService(s.id, { muted: !on })),
+        prefRow('Unread Badge', s.badge !== false, (on) => window.__setup.updateService(s.id, { badge: on })),
+        prefRow('Notify from Title (fallback)', !!s.notifyOnUnread, (on) => window.__setup.updateService(s.id, { notifyOnUnread: on })),
+      );
 
-      // Badge Toggle
-      const badgeBtn = document.createElement('button');
-      badgeBtn.className = s.badge !== false ? 'primary' : '';
-      badgeBtn.textContent = s.badge !== false ? '🏷️ Badge: ON' : '🏷️ Badge: OFF';
-      badgeBtn.onclick = () => window.__setup.updateService(s.id, { badge: s.badge === false });
+      // Notification Filters: regex patterns matched against "title body".
+      // Priority always notifies (bypasses DND); Allow restricts to matches (if
+      // non-empty); Deny suppresses matches. Same shouldNotify() logic as config.js.
+      const filters = document.createElement('div');
+      filters.className = 'filters';
+      const filtersLabel = document.createElement('span');
+      filtersLabel.className = 'filters-label';
+      filtersLabel.textContent = 'Notification filters (regex, comma-separated)';
+      filters.append(filtersLabel);
 
-      // Title Fallback Toggle
-      const fallbackBtn = document.createElement('button');
-      fallbackBtn.className = s.notifyOnUnread ? 'primary' : '';
-      fallbackBtn.textContent = s.notifyOnUnread ? '🔔 Title Fallback: ON' : '🔔 Title Fallback: OFF';
-      fallbackBtn.onclick = () => window.__setup.updateService(s.id, { notifyOnUnread: !s.notifyOnUnread });
+      const makeFilterRow = (labelText, key, hint) => {
+        const row = document.createElement('div');
+        row.className = 'filter-row';
+        const label = document.createElement('span');
+        label.textContent = labelText;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = hint;
+        input.value = ((s.notify && s.notify[key]) || []).join(', ');
+        input.onchange = () => {
+          const patterns = input.value.split(',').map((p) => p.trim()).filter(Boolean);
+          window.__setup.updateService(s.id, { notify: { [key]: patterns } });
+        };
+        row.append(label, input);
+        return row;
+      };
 
-      ctrls.append(muteBtn, badgeBtn, fallbackBtn);
-      card.append(topRow, ctrls);
+      filters.append(
+        makeFilterRow('Priority', 'priority', 'always notifies, bypasses DND — e.g. urgent|boss'),
+        makeFilterRow('Allow', 'allow', 'if set, only matching messages notify'),
+        makeFilterRow('Deny', 'deny', 'matching messages are silenced'),
+      );
+
+      card.append(topRow, ...(statusLine ? [statusLine] : []), prefs, filters);
       container.append(card);
     }
   }
@@ -849,6 +1249,15 @@
     for (const item of filtered) {
       const card = document.createElement('div');
       card.className = 'history-card';
+      const canOpen = !!item.serviceId;
+      card.dataset.clickable = String(canOpen);
+      if (canOpen) {
+        const open = () => window.__setup.select(item.serviceId);
+        card.onclick = open;
+        card.tabIndex = 0;
+        card.setAttribute('role', 'button');
+        card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
+      }
 
       const img = document.createElement('img');
       img.className = 'history-icon';
@@ -861,43 +1270,108 @@
       const header = document.createElement('div');
       header.className = 'history-header';
 
+      if (item.serviceName) {
+        const svc = document.createElement('span');
+        svc.className = 'history-service';
+        svc.textContent = item.serviceName;
+        header.append(svc);
+      }
+
       const title = document.createElement('span');
       title.className = 'history-title';
       title.textContent = item.title || 'Notification';
+      header.append(title);
 
       const time = document.createElement('span');
       time.className = 'history-time';
       time.textContent = formatTime(item.at);
-
-      header.append(title, time);
+      header.append(time);
 
       const body = document.createElement('div');
       body.className = 'history-body';
       body.textContent = item.body || '';
 
       content.append(header, body);
-
-      if (item.serviceId) {
-        const action = document.createElement('div');
-        action.className = 'history-action';
-        const openBtn = document.createElement('button');
-        openBtn.className = 'primary';
-        openBtn.textContent = 'Open Service';
-        openBtn.onclick = () => window.__setup.select(item.serviceId);
-        action.append(openBtn);
-        content.append(action);
-      }
-
       card.append(img, content);
       listEl.append(card);
     }
   }
 
+  // Reads the from/to/days inputs back out of the rendered rows and pushes the
+  // whole array to main — simpler than tracking per-row diffs, and schedules
+  // are short lists so re-sending everything on every edit is cheap.
+  function scheduleFromDom() {
+    return [...document.querySelectorAll('#dnd-schedule-list .dnd-row')].map((row) => ({
+      from: row.querySelector('.dnd-from').value || '22:00',
+      to: row.querySelector('.dnd-to').value || '08:00',
+      days: [...row.querySelectorAll('.day-btn.active')].map((b) => Number(b.dataset.day)),
+    }));
+  }
+  const commitSchedule = () => window.__setup.setDndSchedule(scheduleFromDom());
+
+  function renderDndSchedule() {
+    const list = $('dnd-schedule-list');
+    if (!list) return;
+    list.textContent = '';
+
+    if (!currentDndSchedule.length) {
+      const empty = document.createElement('p');
+      empty.className = 'hint';
+      empty.textContent = 'No quiet-hours windows configured.';
+      list.append(empty);
+      return;
+    }
+
+    currentDndSchedule.forEach((w, idx) => {
+      const row = document.createElement('div');
+      row.className = 'dnd-row';
+
+      const fromInput = document.createElement('input');
+      fromInput.type = 'time';
+      fromInput.className = 'dnd-from';
+      fromInput.value = w.from || '22:00';
+      fromInput.onchange = commitSchedule;
+
+      const arrow = document.createElement('span');
+      arrow.className = 'dnd-arrow';
+      arrow.textContent = '→';
+
+      const toInput = document.createElement('input');
+      toInput.type = 'time';
+      toInput.className = 'dnd-to';
+      toInput.value = w.to || '08:00';
+      toInput.onchange = commitSchedule;
+
+      const days = document.createElement('div');
+      days.style.cssText = 'display:flex; gap:4px;';
+      DAY_LABELS.forEach((label, day) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'day-btn' + ((w.days || []).includes(day) ? ' active' : '');
+        btn.dataset.day = String(day);
+        btn.title = DAY_NAMES[day];
+        btn.textContent = label;
+        btn.onclick = () => { btn.classList.toggle('active'); commitSchedule(); };
+        days.append(btn);
+      });
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'danger';
+      removeBtn.textContent = 'Remove';
+      removeBtn.onclick = () => window.__setup.setDndSchedule(currentDndSchedule.filter((_, i) => i !== idx));
+
+      row.append(fromInput, arrow, toInput, days, removeBtn);
+      list.append(row);
+    });
+  }
+
   /* ------------------------------------------------------------------ state */
-  window.__setup.onState(({ page, presets, services, canClose, notificationsOk, openAtLogin, theme, appMode, windowMode, globalShortcut, ramOptimization, idleSleepMinutes, history, genericIcon: gi }) => {
+  window.__setup.onState(({ page, presets, services, canClose, standalone, notificationsOk, openAtLogin, theme, appMode, windowMode, globalShortcut, ramOptimization, idleSleepMinutes, dnd, dndSchedule, history, genericIcon: gi }) => {
     currentPresets = presets || [];
     currentServices = services || [];
     currentHistory = history || [];
+    currentDndSchedule = dndSchedule || [];
+    currentPage = page;
     genericIcon = gi || genericIcon;
 
     $('welcome').hidden = page !== 'welcome';
@@ -905,14 +1379,21 @@
     $('settings').hidden = page !== 'settings';
     $('history').hidden = page !== 'history';
 
+    // Standalone header only exists without a tabsView (Minimal Mode) — see
+    // main.js's `standalone` flag on the ofa:setup payload.
+    $('standalone-header').hidden = !standalone;
+    $('standalone-notifications').textContent = '🔔 Notifications';
+    $('standalone-notifications').ariaSelected = String(page === 'history');
+    $('standalone-settings').ariaSelected = String(page === 'settings');
+
     const showDone = (btnId, doneId, done) => {
       if ($(btnId)) $(btnId).hidden = done;
       if ($(doneId)) $(doneId).hidden = !done;
     };
     showDone('allow', 'allow-done', notificationsOk);
     showDone('settings-allow', 'settings-allow-done', notificationsOk);
-    showDone('login-item', 'login-done', openAtLogin);
-    showDone('settings-login-item', 'settings-login-done', openAtLogin);
+    setSwitch('login-item', openAtLogin);
+    setSwitch('settings-login-item', openAtLogin);
 
     // Theme buttons
     const currentTheme = theme || 'system';
@@ -935,11 +1416,8 @@
       $('shortcut-input').value = globalShortcut;
     }
 
-    // RAM toggle
-    const ramOpt = ramOptimization !== false;
-    $('ram-toggle').dataset.enabled = String(ramOpt);
-    $('ram-toggle').textContent = ramOpt ? '✓ Enabled' : 'Disabled';
-    $('ram-toggle').className = ramOpt ? 'primary' : '';
+    setSwitch('ram-toggle', ramOptimization !== false);
+    setSwitch('dnd-toggle', dnd);
 
     // Idle Sleep buttons & status
     const mins = idleSleepMinutes !== undefined ? Number(idleSleepMinutes) : 30;
@@ -955,11 +1433,10 @@
       $('custom-idle-input').value = '';
     }
 
-    if (mins === 0) {
-      $('idle-status').textContent = '⚡ Status: Auto-sleep is OFF (Tabs stay in memory continuously)';
-    } else {
-      $('idle-status').textContent = `⚡ Status: Auto-sleep unloads RAM after ${mins} minutes of inactivity`;
-    }
+    const boltIcon = '<span class="icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 3 14h7l-1 8 11-14h-7z"/></svg></span>';
+    $('idle-status').innerHTML = mins === 0
+      ? `${boltIcon} Auto-sleep is off — tabs stay in memory continuously.`
+      : `${boltIcon} Unloads RAM (and disconnects) after ${mins} minutes idle.`;
 
     // Populate history service filter dropdown
     const select = $('history-filter-svc');
@@ -982,6 +1459,9 @@
     // Render Grid & Active Services
     renderGrid();
     renderManagedServices();
+    renderDndSchedule();
+    $('services-tab-count').textContent = String(currentServices.length);
+    setServicesSubPage(servicesSubPage);
     $('done').hidden = !canClose;
     $('tally').textContent = currentServices.length
       ? `${currentServices.length} service${currentServices.length > 1 ? 's' : ''} added`

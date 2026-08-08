@@ -19,7 +19,11 @@ async function run() {
     const n = sampleNotifications[i];
     const payload = JSON.stringify({ title: n.title, body: n.body });
     try {
-      execFileSync('open', ['-a', '/Applications/notihub.app', '--args', `--notihub-notify=${payload}`]);
+      // -n forces a new process to spawn even though notihub is already running —
+      // that new process is what carries --args through Electron's single-instance
+      // relay to the running app. Without it, `open` just refocuses the existing
+      // window and the payload never arrives (silently: `open` still exits 0).
+      execFileSync('open', ['-n', '-a', '/Applications/notihub.app', '--args', `--notihub-notify=${payload}`]);
       console.log(`  ✓ Sent (${i + 1}/5): ${n.title}`);
     } catch (err) {
       console.error(`  ❌ Failed (${i + 1}/5):`, err.message);

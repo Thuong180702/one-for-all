@@ -2,6 +2,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const presets = require('./presets');
 
 const DIR = path.join(os.homedir(), 'Library', 'Application Support', 'notihub');
 const FILE = path.join(DIR, 'config.json');
@@ -71,7 +72,10 @@ function load() {
     }
     const seed = withDefaults({
       ...DEFAULTS,
-      services: [{ id: 'messenger', name: 'Messenger', url: 'https://www.messenger.com/' }],
+      // Reuse the messenger preset (not a hand-rolled stub) so the seed service
+      // gets notifyOnUnread: true — Messenger never calls window.Notification,
+      // so without the fallback its first-run tab notifies about nothing.
+      services: [{ id: 'messenger', ...presets.messenger }],
     });
     save(seed);
     return seed;
@@ -88,9 +92,15 @@ function save(cfg) {
 }
 
 // "(3) Messenger" -> 3, "Inbox (12) - Gmail" -> 12, "(9+) Slack" -> 9
+// Capped at 999: a parenthesized year ("Report (2023) - Docs") or version number
+// ("Plan (2024).pdf") matches the same pattern but isn't an unread count, and
+// unreadDelta() would otherwise announce "2023 new messages" the moment such a
+// title first loads.
 function parseUnread(title) {
   const m = /\((\d+)\+?\)/.exec(title || '');
-  return m ? Number(m[1]) : 0;
+  if (!m) return 0;
+  const n = Number(m[1]);
+  return n <= 999 ? n : 0;
 }
 
 const matches = (patterns, text) =>
@@ -121,6 +131,22 @@ function inWindow(w, now) {
 
 function isDndActive(cfg, now = new Date()) {
   return !!cfg.dnd || (cfg.dndSchedule || []).some((w) => inWindow(w, now));
+}
+
+// Renderer-supplied, so shape isn't trusted: coerce fields and drop anything with
+// an unparseable from/to (inWindow would just skip it anyway, but keeping config.json
+// free of junk is worth the extra pass). Capped so a runaway UI state can't grow forever.
+function normalizeDndSchedule(schedule) {
+  if (!Array.isArray(schedule)) return [];
+  return schedule
+    .filter((w) => w && typeof w === 'object')
+    .map((w) => ({
+      from: typeof w.from === 'string' ? w.from : '',
+      to: typeof w.to === 'string' ? w.to : '',
+      days: Array.isArray(w.days) ? w.days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6) : [],
+    }))
+    .filter((w) => toMinutes(w.from) !== null && toMinutes(w.to) !== null)
+    .slice(0, 20);
 }
 
 function shouldNotify(service, cfg, { title = '', body = '' } = {}, now = new Date()) {
@@ -172,6 +198,6 @@ module.exports = {
   CLI_NOTIFY,
   parseCliNotify,
   DIR, FILE, load, save, withDefaults, parseUnread, shouldNotify, isDndActive, unreadDelta,
-  uniqueServiceId, updateService,
+  uniqueServiceId, updateService, normalizeDndSchedule,
 };
 

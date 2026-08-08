@@ -1,6 +1,6 @@
 const {
   app, BaseWindow, WebContentsView, Notification, session, Tray, Menu, screen,
-  globalShortcut, powerSaveBlocker, powerMonitor, ipcMain, nativeImage, shell, nativeTheme,
+  globalShortcut, powerSaveBlocker, powerMonitor, ipcMain, nativeImage, shell, nativeTheme, net,
 } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -17,8 +17,59 @@ if (!app.requestSingleInstanceLock()) { app.quit(); return; }
 // megabytes per session. A chat client re-fetches its bundles anyway; 64 MB is plenty.
 app.commandLine.appendSwitch('disk-cache-size', String(64 * 1024 * 1024));
 
+// The GPU process was the single largest consumer measured in profiling (~100MB
+// resident, spiking near 400MB) for what's ultimately compositing a handful of chat
+// UIs. Cap its budget and skip the persistent shader cache — services reload over
+// the network anyway, so there's nothing gained from caching compiled shaders on disk.
+app.commandLine.appendSwitch('force-gpu-mem-available-mb', '128');
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+
 const TAB_H = 34;
 const DEV = process.argv.includes('--dev');
+const RETRY_BASE_MS = 5000;
+const RETRY_MAX_MS = 5 * 60 * 1000;
+const FAVICON_SETTLE_MS = 5000;
+// A site that fires one real Notification API call sets sawApiNotification and the
+// title-count fallback stays off for good — right, if the API path keeps working.
+// But if the site later stops calling it (a redeploy, a service-worker update) the
+// flag never resets on its own, and the fallback would stay silenced forever. Treat
+// "saw an API notification" as stale after this long so the fallback can take back over.
+const API_NOTIFICATION_TTL_MS = 10 * 60 * 1000;
+
+// Connection status thresholds, keyed off the last completed HTTP request
+// (ses.webRequest.onCompleted). An open WebSocket sits idle between messages
+// with zero HTTP traffic, so "quiet" isn't itself a problem — these are long
+// enough that a real chat app's own keepalive/poll traffic keeps it under
+// STALE_MS in normal use, and DEAD_MS is deliberately generous before crying wolf.
+const STALE_MS = 5 * 60 * 1000;
+const DEAD_MS = 20 * 60 * 1000;
+
+// Catches the common shapes of "your session ended, please sign in again" URLs.
+// False negatives (a login page that doesn't match) just mean no warning shows —
+// safer than a false positive flagging a real conversation as logged-out.
+const LOGIN_URL_PATTERN = /\/(login|signin|sign-in|checkpoint|auth|authenticate)(?:[/?#]|$)/i;
+function looksLikeLoginPage(url) {
+  try {
+    const u = new URL(url);
+    return LOGIN_URL_PATTERN.test(u.pathname) || /(^|\.)accounts\.google\.com$/i.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+// One glance at connectionStatus() should answer "is this tab actually going to
+// notify me?" — the exact question this app's whole premise depends on, and the
+// one thing that previously had zero visibility (a dead socket looks identical
+// to a quiet conversation from the UI).
+function connectionStatus(entry) {
+  if (entry.needsLogin) return 'login';
+  if (entry.isSleeping) return 'asleep';
+  const idle = Date.now() - entry.lastSeen;
+  if (idle < STALE_MS) return 'live';
+  if (idle < DEAD_MS) return 'stale';
+  return 'dead';
+}
+
 const LOG_FILE = path.join(config.DIR, 'notihub-debug.log');
 // Notification title/body pass through here — real message content. Only ever
 // written to disk in --dev; on disk otherwise would contradict the README's
@@ -35,6 +86,7 @@ let cfg = config.load();
 const views = new Map(); // service.id -> { view, service, unread, lastSeen }
 const history = [];
 let win, tabsView, setupView, tray, active, quitting = false;
+let trayMenu = null; // rebuilt by buildTrayMenu(); the right-click handler reads it fresh
 let setupOpen = false;
 let setupPage = 'services';
 let pendingLogin = null; // service added from the UI, to switch to once it exists
@@ -63,10 +115,17 @@ function addService(service) {
     },
   });
   const entry = {
-    view, service, unread: 0, lastSeen: Date.now(), loadedAt: Date.now(), sawApiNotification: false,
+    view, service, unread: 0, lastSeen: Date.now(), loadedAt: Date.now(),
+    sawApiNotification: false, apiNotificationAt: 0, // see apiNotificationActive()
     pendingNotify: null,      // { base, timer } — debounce unread-count notifications
     notifyCooldownUntil: 0,   // suppress repeat popups for 2 min; reset when user views tab
     isSleeping: false,
+    retryDelayMs: RETRY_BASE_MS, // doubles on each consecutive failure, resets on success
+    retryTimer: null,
+    faviconTimer: null,
+    unresponsiveTimer: null,
+    crashCount: 0,
+    needsLogin: false, // set from the URL — see LOGIN_URL_PATTERN
   };
   const wc = view.webContents;
   wc.setBackgroundThrottling(ramOpt);
@@ -78,40 +137,92 @@ function addService(service) {
 
   // ponytail: liveness = completed HTTP requests. Frames on an already-upgraded
   // WebSocket are invisible here, which is why reloadIfIdleMinutes defaults to off.
-  ses.webRequest.onCompleted(() => { entry.lastSeen = Date.now(); });
+  // Electron's webRequest listeners are per-session (singleton, last one wins), and
+  // a session is keyed by partition — re-adding a service with the same partition id
+  // replaces this closure entirely, but removeService() never explicitly unregisters
+  // it. The views.get() guard makes a stale closure a no-op instead of writing to an
+  // entry object nothing else references anymore.
+  ses.webRequest.onCompleted(() => {
+    if (views.get(service.id) === entry) entry.lastSeen = Date.now();
+  });
 
   // Links out of the app open in the real browser; the service keeps its page.
   wc.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
   });
+  // did-navigate only fires on a successful commit (never on a failed load), so it's
+  // the signal that a retry actually worked — reset the backoff back to the base delay.
+  // Also where a redirect to a login page shows up: a session that expired lands
+  // here with no error at all, and would otherwise look identical to "no new
+  // messages" — see LOGIN_URL_PATTERN.
+  const trackUrl = (url) => { entry.needsLogin = looksLikeLoginPage(url); };
+  wc.on('did-navigate', (_e, url) => { entry.retryDelayMs = RETRY_BASE_MS; trackUrl(url); });
+  wc.on('did-navigate-in-page', (_e, url) => trackUrl(url)); // SPA client-side routing (history.pushState)
   wc.on('did-fail-load', (_e, code, desc, _url, isMainFrame) => {
     if (!isMainFrame || code === -3) return; // -3 = aborted, normal during SPA nav
-    console.error(`[${entry.service.id}] load failed (${desc}); retrying in 5s`);
-    setTimeout(() => !wc.isDestroyed() && wc.loadURL(entry.service.url), 5000);
+    scheduleReconnect(entry, wc, `load failed (${desc})`);
   });
+
+  // A crashed/OOM-killed renderer just stops existing — no did-fail-load, no error
+  // event, the tab silently goes blank forever with the badge frozen at its last
+  // value. Without this a crash is indistinguishable from "no new messages" until
+  // someone happens to click the tab.
+  wc.on('render-process-gone', (_e, details) => {
+    if (!views.has(entry.service.id) || views.get(entry.service.id) !== entry) return; // torn down on purpose by removeService
+    if (details.reason === 'clean-exit') return;
+    entry.crashCount = (entry.crashCount || 0) + 1;
+    dbg(`render-process-gone service=${entry.service.id} reason=${details.reason} crashCount=${entry.crashCount}`);
+    scheduleReconnect(entry, wc, `renderer gone (${details.reason})`);
+  });
+
+  // A page can go unresponsive without crashing (a synchronous JS loop, a huge
+  // layout). Give it a chance to recover on its own before forcing a reload —
+  // long enough that a brief hang doesn't interrupt something legitimate.
+  wc.on('unresponsive', () => {
+    console.error(`[${entry.service.id}] renderer unresponsive`);
+    clearTimeout(entry.unresponsiveTimer);
+    entry.unresponsiveTimer = setTimeout(() => {
+      if (!wc.isDestroyed()) { console.error(`[${entry.service.id}] still unresponsive after 30s; reloading`); wc.reload(); }
+    }, 30000);
+  });
+  wc.on('responsive', () => clearTimeout(entry.unresponsiveTimer));
 
   // Auto-detect & save page favicon for services. Reads entry.service (not the
   // `service` param) because applyConfig() swaps that object out on every
   // config reload — writing to the stale one would save an orphaned favicon.
+  // Debounced: some sites swap their favicon to reflect an unread badge, which
+  // would otherwise hit disk (and cascade through fs.watch → applyConfig →
+  // full UI re-render) on every single new message.
   wc.on('page-favicon-updated', (_e, favicons) => {
-    if (favicons && favicons.length > 0 && favicons[0] !== entry.service.icon) {
+    if (!favicons || !favicons.length || favicons[0] === entry.service.icon) return;
+    clearTimeout(entry.faviconTimer);
+    entry.faviconTimer = setTimeout(() => {
       entry.service.icon = favicons[0];
+      resolveNotificationIcon(favicons[0]);
       config.save(cfg);
       renderTabs();
       renderSetup();
-    }
+    }, FAVICON_SETTLE_MS);
   });
 
   wc.loadURL(service.url);
   views.set(service.id, entry);
   layout();
+
+  // Kick the icon fetch off now (async) rather than at the first real notify() —
+  // by the time an actual message arrives, the NativeImage is already cached.
+  const icon = service.icon || presets[service.id]?.icon || getFaviconUrl(service.url) || DATA_URIS.generic;
+  resolveNotificationIcon(icon);
 }
 
 function removeService(id) {
   const entry = views.get(id);
   if (!entry) return;
   if (entry.pendingNotify) { clearTimeout(entry.pendingNotify.timer); entry.pendingNotify = null; }
+  clearTimeout(entry.retryTimer);
+  clearTimeout(entry.faviconTimer);
+  clearTimeout(entry.unresponsiveTimer);
   win.contentView.removeChildView(entry.view);
   entry.view.webContents.close();
   views.delete(id);
@@ -174,10 +285,46 @@ function updateVisibility() {
 
 function layout() {
   const { width, height } = win.getContentBounds();
-  const body = { x: 0, y: TAB_H, width, height: height - TAB_H };
-  tabsView.setBounds({ x: 0, y: 0, width, height: TAB_H });
+  // No tabsView in Minimal Mode (see ensureTabsView/teardownTabsView) — setup
+  // and service views then own the full height instead of leaving a 34px gap.
+  const topH = tabsView ? TAB_H : 0;
+  const body = { x: 0, y: topH, width, height: height - topH };
+  if (tabsView) tabsView.setBounds({ x: 0, y: 0, width, height: TAB_H });
   if (setupView) setupView.setBounds(body);
   for (const { view } of views.values()) view.setBounds(body);
+}
+
+const isMinimal = () => cfg.appMode === 'minimal';
+
+// tabsView is a whole extra Chromium renderer process (~30MB measured) just to
+// show a 34px strip — in Minimal Mode that strip renders a single "Notifications"
+// toggle (see tabs.html), so the strip itself is skipped entirely and setup.html
+// grows its own small header for that one button instead (see renderSetup's
+// `standalone` flag). Normal Mode is unaffected: tabsView still owns the real tab bar.
+function ensureTabsView() {
+  if (tabsView) return;
+  tabsView = new WebContentsView({
+    webPreferences: {
+      preload: path.join(__dirname, 'tabs-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  tabsView.webContents.on('will-navigate', (e) => e.preventDefault()); // chrome stays chrome
+  tabsView.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  tabsView.webContents.on('did-finish-load', renderTabs);
+  tabsView.webContents.loadFile(path.join(__dirname, 'tabs.html'));
+  win.contentView.addChildView(tabsView);
+  layout();
+}
+
+function teardownTabsView() {
+  if (!tabsView) return;
+  win.contentView.removeChildView(tabsView);
+  tabsView.webContents.close();
+  tabsView = null;
+  layout();
 }
 
 /* --------------------------------------------------------------- setup UI */
@@ -214,7 +361,13 @@ function closeSetup() {
   setupView.webContents.close(); // a whole renderer process for a screen nobody is looking at
   setupView = null;
   renderTabs();
-  if (active) switchTo(active); // also re-runs layout and visibility
+  // `active` is only ever set by switchTo(), which the first-launch startup path
+  // (openSetup('welcome') straight from app.whenReady()) never calls even though a
+  // service may already exist (e.g. the pre-seeded Messenger). Without this fallback,
+  // dismissing the welcome screen with nothing active left the window with no view
+  // attached at all — blank, no service, no setup — which just looks hung.
+  if (active && views.has(active)) switchTo(active); // also re-runs layout and visibility
+  else if (views.size) switchTo(views.keys().next().value);
   else updateVisibility();
 }
 
@@ -226,8 +379,13 @@ function renderSetup() {
     services: cfg.services.map((s) => ({
       ...s,
       icon: s.icon || presets[s.id]?.icon || getFaviconUrl(s.url) || DATA_URIS.generic,
+      status: views.has(s.id) ? connectionStatus(views.get(s.id)) : (s.enabled ? 'unknown' : 'disabled'),
     })),
     canClose: views.size > 0,
+    // No tabsView (Minimal Mode) means no tab strip anywhere providing the
+    // Notifications/Settings buttons — setup.html renders its own small header
+    // for them instead of relying on the (nonexistent) one above it.
+    standalone: !tabsView,
     notificationsOk: !!cfg.notificationsOk,
     theme: cfg.theme || 'system',
     appMode: cfg.appMode || 'normal',
@@ -235,6 +393,8 @@ function renderSetup() {
     globalShortcut: cfg.globalShortcut || 'Cmd+Shift+Space',
     ramOptimization: cfg.ramOptimization !== false,
     idleSleepMinutes: cfg.idleSleepMinutes || 0,
+    dnd: !!cfg.dnd,
+    dndSchedule: cfg.dndSchedule || [],
     history: history.slice(0, 50),
     // an unpackaged run has no login item to read, so fall back to what config says
     openAtLogin: app.isPackaged ? app.getLoginItemSettings().openAtLogin : !!cfg.startAtLogin,
@@ -278,8 +438,12 @@ function show(forceService = false) {
 
 function applyConfig(next) {
   const ramOptChanged = cfg.ramOptimization !== next.ramOptimization;
+  const appModeChanged = cfg.appMode !== next.appMode;
   cfg = next;
   nativeTheme.themeSource = cfg.theme || 'system';
+  // Switching Minimal Mode at runtime, not just at startup — same tabsView
+  // create/destroy as the initial isMinimal() check in app.whenReady().
+  if (appModeChanged) { if (isMinimal()) teardownTabsView(); else ensureTabsView(); }
   const wanted = next.services.filter((s) => s.enabled);
   for (const id of [...views.keys()]) {
     if (!wanted.some((s) => s.id === id)) removeService(id);
@@ -331,6 +495,47 @@ function retain(n) {
   return n;
 }
 
+// macOS's Notification `icon` needs a NativeImage, not the URL/data-URI string
+// `icon` resolves to elsewhere — and fetching a remote favicon is async while
+// showing a notification is not, so a same-tick notify() can only use what's
+// already cached from an earlier call. Pre-warmed in addService() so the first
+// real notification for a service already has it.
+const iconCache = new Map(); // icon src string -> NativeImage
+// A site that cycles its favicon per unread count (favicon-1.png, favicon-2.png...)
+// would otherwise grow this map forever, one NativeImage per count ever seen.
+// Map preserves insertion order, so the oldest entry is always the eviction target.
+const ICON_CACHE_MAX = 200;
+function cacheIcon(src, img) {
+  iconCache.set(src, img);
+  if (iconCache.size > ICON_CACHE_MAX) iconCache.delete(iconCache.keys().next().value);
+}
+function resolveNotificationIcon(src) {
+  if (!src) return null;
+  if (iconCache.has(src)) return iconCache.get(src);
+  if (src.startsWith('data:')) {
+    try {
+      const img = nativeImage.createFromDataURL(src);
+      if (!img.isEmpty()) { cacheIcon(src, img); return img; }
+    } catch {}
+    return null;
+  }
+  if (/^https?:\/\//.test(src)) {
+    cacheIcon(src, null); // don't refetch on every notify() while this is in flight
+    net.request(src).on('response', (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        try {
+          const img = nativeImage.createFromBuffer(Buffer.concat(chunks));
+          if (!img.isEmpty()) cacheIcon(src, img);
+        } catch {}
+      });
+    }).end();
+    return null;
+  }
+  return null;
+}
+
 function notify({ title, body, sound, serviceId, onClick }) {
   dbg(`notify() called title="${title}" body="${body}" serviceId=${serviceId}`);
   const entrySvc = serviceId ? views.get(serviceId)?.service : null;
@@ -348,12 +553,14 @@ function notify({ title, body, sound, serviceId, onClick }) {
     });
     history.length = Math.min(history.length, 200);
   }
+  const nativeIcon = resolveNotificationIcon(icon);
   const n = retain(new Notification({
     title,
     subtitle: serviceName,
     body: body || '',
     silent: sound === null,
     ...(sound && sound !== 'default' ? { sound } : {}),
+    ...(nativeIcon ? { icon: nativeIcon } : {}),
   }));
   n.on('show', () => dbg(`notification SHOWN title="${title}"`));
   n.on('click', onClick);
@@ -364,7 +571,24 @@ function notify({ title, body, sound, serviceId, onClick }) {
   n.show();
 }
 
+// Shared by did-fail-load and render-process-gone: both mean "this service is
+// no longer connected to anything" and both should back off the same way,
+// rather than each keeping its own retry counter that resets the other's.
+function scheduleReconnect(entry, wc, reason) {
+  const delay = entry.retryDelayMs;
+  console.error(`[${entry.service.id}] ${reason}; reloading in ${Math.round(delay / 1000)}s`);
+  clearTimeout(entry.retryTimer);
+  entry.retryTimer = setTimeout(() => !wc.isDestroyed() && wc.loadURL(entry.service.url), delay);
+  entry.retryDelayMs = Math.min(delay * 2, RETRY_MAX_MS);
+}
+
 const findEntry = (senderId) => [...views.values()].find((v) => v.view.webContents.id === senderId);
+
+// See API_NOTIFICATION_TTL_MS: a real API notification only suppresses the
+// title-count fallback for a while, not forever, so a site that quietly stops
+// calling the Notification API doesn't go silent with no way to notice.
+const apiNotificationActive = (entry) =>
+  entry.sawApiNotification && Date.now() - entry.apiNotificationAt < API_NOTIFICATION_TTL_MS;
 
 // Preload reruns on every navigation, so it asks rather than us guessing when to tell it.
 ipcMain.on('ofa:hello', (e) => {
@@ -378,6 +602,7 @@ ipcMain.on('ofa:notify', (e, payload) => {
   if (!entry) { dbg('ofa:notify no entry found, dropping'); return; }
   entry.lastSeen = Date.now();
   entry.sawApiNotification = true;
+  entry.apiNotificationAt = Date.now();
   // Real API notification cancels any pending unread-count fallback to avoid duplicates.
   if (entry.pendingNotify) { clearTimeout(entry.pendingNotify.timer); entry.pendingNotify = null; }
   const ok = config.shouldNotify(entry.service, cfg, payload);
@@ -405,11 +630,11 @@ ipcMain.on('ofa:title', (e, title) => {
   const prev = entry.unread;
 
   entry.unread = unread;
-  dbg(`ofa:title service=${entry.service.id} unread=${prev}->${unread} notifyOnUnread=${entry.service.notifyOnUnread} sawApi=${entry.sawApiNotification}`);
+  dbg(`ofa:title service=${entry.service.id} unread=${prev}->${unread} notifyOnUnread=${entry.service.notifyOnUnread} sawApi=${apiNotificationActive(entry)}`);
   updateBadge();
 
   // Only trigger fallback notification when count goes up.
-  if (!(unread > prev) || !entry.service.notifyOnUnread || entry.sawApiNotification) {
+  if (!(unread > prev) || !entry.service.notifyOnUnread || apiNotificationActive(entry)) {
     if (entry.pendingNotify) { clearTimeout(entry.pendingNotify.timer); entry.pendingNotify = null; }
     return;
   }
@@ -432,7 +657,7 @@ ipcMain.on('ofa:title', (e, title) => {
     // config.unreadDelta is the same settle-window + delta logic test/test.js checks
     // directly; reusing it here keeps the settle threshold and message wording in one place.
     const body = config.unreadDelta(
-      { enabled: true, sawApiNotification: entry.sawApiNotification, msSinceLoad: Date.now() - entry.loadedAt },
+      { enabled: true, sawApiNotification: apiNotificationActive(entry), msSinceLoad: Date.now() - entry.loadedAt },
       base, entry.unread,
     );
     dbg(`pendingNotify fired service=${entry.service.id} base=${base} current=${entry.unread} body=${body}`);
@@ -461,6 +686,8 @@ ipcMain.on('ofa:set-theme', (_e, theme) => patchConfig({ theme }));
 ipcMain.on('ofa:set-app-mode', (_e, mode) => patchConfig({ appMode: mode }));
 ipcMain.on('ofa:set-ram-opt', (_e, on) => patchConfig({ ramOptimization: !!on }));
 ipcMain.on('ofa:set-idle-sleep', (_e, mins) => patchConfig({ idleSleepMinutes: Number(mins) || 0 }));
+ipcMain.on('ofa:set-dnd', (_e, on) => patchConfig({ dnd: !!on }));
+ipcMain.on('ofa:set-dnd-schedule', (_e, schedule) => patchConfig({ dndSchedule: config.normalizeDndSchedule(schedule) }));
 // fs.watch turns every one of these into applyConfig, which re-renders the UI.
 const patchConfig = (patch) => {
   cfg = config.withDefaults({ ...cfg, ...patch });
@@ -538,7 +765,16 @@ function recreateWindow() {
   if (!win) return;
   const menubar = isMenubar();
   const oldWin = win;
-  
+
+  // Detach every child view before destroying oldWin. Left parented to a
+  // destroyed BaseWindow, a non-active service's WebContentsView is orphaned
+  // rather than freed — its renderer process keeps running, and switchTo()
+  // would try to re-attach a view whose old window no longer exists.
+  const detach = (v) => { try { oldWin.contentView.removeChildView(v); } catch {} };
+  if (tabsView) detach(tabsView);
+  if (setupView) detach(setupView);
+  for (const { view } of views.values()) detach(view);
+
   win = new BaseWindow({
     width: menubar ? 420 : 1100,
     height: menubar ? 620 : 780,
@@ -546,6 +782,11 @@ function recreateWindow() {
     title: 'notihub',
     frame: !menubar,
     alwaysOnTop: menubar,
+    // Without this, a click on a button in a window that lost key-window status
+    // (e.g. the macOS notification-permission system alert stealing focus during
+    // onboarding) only refocuses the window instead of registering as a real
+    // click — the exact "Continue/Skip does nothing, feels frozen" symptom.
+    acceptsFirstMouse: true,
   });
 
   win.on('resize', layout);
@@ -685,7 +926,11 @@ ipcMain.on('ofa:test-notification', (e) => {
   }, 2500);
 });
 
+// Debug-only scaffolding for manually exercising the notification pipeline —
+// not wired to any button in setup.html, but the IPC channel is still live in
+// a production build unless gated here.
 ipcMain.on('ofa:test-simulated-notification', (_e, { count = 5 } = {}) => {
+  if (!DEV) return;
   const firstEntry = views.values().next().value;
   if (firstEntry) {
     firstEntry.unread = count;
@@ -717,6 +962,7 @@ ipcMain.on('ofa:test-simulated-notification', (_e, { count = 5 } = {}) => {
 });
 
 ipcMain.on('ofa:set-unread-count', (_e, count) => {
+  if (!DEV) return;
   const firstEntry = views.values().next().value;
   if (firstEntry) {
     firstEntry.unread = Math.max(0, Number(count) || 0);
@@ -729,10 +975,13 @@ function handleCliNotify(argv) {
   const payload = config.parseCliNotify(argv);
   if (!payload) return false;
   if (!payload.title) return true;
+  // serviceId is optional and doesn't have to be a configured service — notify()
+  // already falls back to presets[serviceId]?.icon, so `--service telegram` picks
+  // up Telegram's real icon even if the user never added a Telegram tab.
   notify({
     title: payload.title,
     body: payload.body,
-    serviceId: null,
+    serviceId: payload.serviceId || null,
     onClick: () => (payload.url ? shell.openExternal(payload.url) : show()),
   });
   return true;
@@ -740,9 +989,10 @@ function handleCliNotify(argv) {
 
 /* --------------------------------------------------------------- watchdog */
 
-// One tick, two independent idle policies: reload a service that's gone quiet
-// (opt-in per service) and sleep one RAM optimization has decided to unload
-// (opt-in globally). They share a timer since both only need minute resolution.
+// One tick, three independent idle policies: reload a service that's gone quiet
+// (opt-in per service), sleep one RAM optimization has decided to unload (opt-in
+// globally), and refresh the connection-status indicator. They share a timer
+// since all three only need minute resolution.
 function watchdogTick() {
   const now = Date.now();
   const sleepMins = cfg.idleSleepMinutes;
@@ -760,22 +1010,28 @@ function watchdogTick() {
       && now - entry.lastSeen > sleepTimeoutMs) {
       dbg(`RAM Optimization: sleeping idle service=${id} (idle for ${sleepMins}m)`);
       entry.isSleeping = true;
-      entry.view.webContents.loadURL('about:blank'); // release heavy DOM memory
+      entry.view.webContents.loadURL('about:blank'); // release idle memory
     }
   }
+  // connectionStatus() is time-based (idle duration) — without this, a tab that
+  // goes quiet with no other event (no click, no message, no config change)
+  // would keep showing "live" forever since nothing else re-renders the tabs.
+  renderTabs();
+  renderSetup();
 }
 
 /* -------------------------------------------------------------------- chrome */
 
 function renderTabs() {
   if (!tabsView) return;
-  const list = [...views.values()].map(({ service, unread }) => ({
-    id: service.id,
-    name: service.name,
-    icon: service.icon || presets[service.id]?.icon || getFaviconUrl(service.url) || DATA_URIS.generic,
-    unread,
-    muted: service.muted,
-    active: service.id === active,
+  const list = [...views.values()].map((entry) => ({
+    id: entry.service.id,
+    name: entry.service.name,
+    icon: entry.service.icon || presets[entry.service.id]?.icon || getFaviconUrl(entry.service.url) || DATA_URIS.generic,
+    unread: entry.unread,
+    muted: entry.service.muted,
+    active: entry.service.id === active,
+    status: connectionStatus(entry),
   }));
   const activeEntry = active ? views.get(active) : null;
   tabsView.webContents.send('ofa:tabs', {
@@ -815,7 +1071,7 @@ function buildTrayMenu() {
       if (h.serviceId) switchTo(h.serviceId);
     },
   }));
-  const menu = Menu.buildFromTemplate([
+  trayMenu = Menu.buildFromTemplate([
     ...services,
     { type: 'separator' },
     { label: 'Recent', submenu: recent.length ? recent : [{ label: 'Nothing yet', enabled: false }] },
@@ -834,11 +1090,10 @@ function buildTrayMenu() {
     { label: 'Quit notihub', accelerator: 'Cmd+Q', click: () => app.quit() },
   ]);
 
-  if (process.platform === 'darwin') {
-    tray.on('right-click', () => tray.popUpContextMenu(menu));
-  } else {
-    tray.setContextMenu(menu);
-  }
+  // On macOS the right-click handler is registered once (below, at tray creation)
+  // and reads trayMenu fresh each time. Registering it here too — this function
+  // runs on every unread-count change — would pile up one listener per update.
+  if (process.platform !== 'darwin') tray.setContextMenu(trayMenu);
 }
 
 function cycleTab(dir = 1) {
@@ -925,6 +1180,11 @@ app.whenReady().then(() => {
     title: 'notihub',
     frame: !menubar,
     alwaysOnTop: menubar,
+    // Without this, a click on a button in a window that lost key-window status
+    // (e.g. the macOS notification-permission system alert stealing focus during
+    // onboarding) only refocuses the window instead of registering as a real
+    // click — the exact "Continue/Skip does nothing, feels frozen" symptom.
+    acceptsFirstMouse: true,
   });
   win.on('resize', layout);
   // focus/blur: when user switches to another app, services see visible=false
@@ -946,19 +1206,7 @@ app.whenReady().then(() => {
     });
   }
 
-  tabsView = new WebContentsView({
-    webPreferences: {
-      preload: path.join(__dirname, 'tabs-preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-  tabsView.webContents.on('will-navigate', (e) => e.preventDefault()); // chrome stays chrome
-  tabsView.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  tabsView.webContents.on('did-finish-load', renderTabs);
-  tabsView.webContents.loadFile(path.join(__dirname, 'tabs.html'));
-  win.contentView.addChildView(tabsView);
+  if (!isMinimal()) ensureTabsView();
 
   const trayIcon = nativeImage.createFromBuffer(trayPng(1));
   trayIcon.addRepresentation({ scaleFactor: 2, buffer: trayPng(2) });
@@ -973,9 +1221,18 @@ app.whenReady().then(() => {
     if (win.isVisible() || Date.now() - hiddenAt < 250) win.hide();
     else show();
   });
+  // Registered once here, not in buildTrayMenu() (which reruns on every unread-count
+  // change) — reads trayMenu fresh so it always pops the latest build.
+  if (process.platform === 'darwin') tray.on('right-click', () => tray.popUpContextMenu(trayMenu));
 
   const enabledServices = cfg.services.filter((s) => s.enabled);
   enabledServices.forEach(addService);
+
+  // Pre-warm every known preset's icon, not just configured services — a `notihub
+  // notify --service telegram` can reference a preset the user never added, and
+  // without this the very first such notification would show before the async
+  // favicon fetch resolves.
+  for (const id in presets) resolveNotificationIcon(presets[id].icon);
 
   if (!cfg.onboarded) {
     openSetup('welcome');

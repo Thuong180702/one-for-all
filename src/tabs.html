@@ -9,6 +9,7 @@
     --fg-dim: #6c6c70;
     --active-bg: #ffffff;
     --active-fg: #000000;
+    --accent: #0066cc;
     --hover-bg: rgba(0, 0, 0, 0.05);
     --line: rgba(0, 0, 0, 0.12);
     --badge: #ff3b30;
@@ -19,8 +20,12 @@
       --bg: rgba(38, 38, 42, 0.95);
       --fg: #ececec;
       --fg-dim: #98989d;
-      --active-bg: #3a3a3e;
+      /* Was #3a3a3e — measured contrast against --bg was 1.33:1, well under the
+         3:1 WCAG floor for UI surfaces. Lightened, plus the accent underline
+         below no longer relies on brightness alone to read as "selected". */
+      --active-bg: #4c4c52;
       --active-fg: #ffffff;
+      --accent: #0a84ff;
       --hover-bg: rgba(255, 255, 255, 0.08);
       --line: rgba(255, 255, 255, 0.12);
       --badge: #ff453a;
@@ -31,8 +36,9 @@
     --bg: rgba(38, 38, 42, 0.95) !important;
     --fg: #ececec !important;
     --fg-dim: #98989d !important;
-    --active-bg: #3a3a3e !important;
+    --active-bg: #4c4c52 !important;
     --active-fg: #ffffff !important;
+    --accent: #0a84ff !important;
     --hover-bg: rgba(255, 255, 255, 0.08) !important;
     --line: rgba(255, 255, 255, 0.12) !important;
     --badge: #ff453a !important;
@@ -44,6 +50,7 @@
     --fg-dim: #6c6c70 !important;
     --active-bg: #ffffff !important;
     --active-fg: #000000 !important;
+    --accent: #0066cc !important;
     --hover-bg: rgba(0, 0, 0, 0.05) !important;
     --line: rgba(0, 0, 0, 0.12) !important;
     --badge: #ff3b30 !important;
@@ -103,16 +110,39 @@
     background: var(--active-bg);
     color: var(--active-fg);
     font-weight: 500;
-    box-shadow: var(--shadow);
+    /* Accent underline reads as "selected" independent of brightness contrast,
+       which a translucent bg over a variable desktop wallpaper can't guarantee. */
+    box-shadow: var(--shadow), inset 0 -2px 0 var(--accent);
   }
 
+  .tab-icon-wrap {
+    position: relative;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
   .tab-icon {
     width: 16px;
     height: 16px;
     border-radius: 4px;
     object-fit: contain;
-    flex-shrink: 0;
   }
+
+  /* "Is this tab actually going to notify me?" at a glance. 'live' shows nothing —
+     the healthy case shouldn't compete for attention. Sized/positioned like a
+     presence dot (Slack/Discord) so it reads as status, not decoration. */
+  .status-dot {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    border: 1.5px solid var(--bg);
+  }
+  .status-dot.stale { background: #ffb020; }
+  .status-dot.dead, .status-dot.login { background: var(--badge); }
+  .status-dot.asleep { background: var(--fg-dim); }
 
   .tab-name {
     font-weight: 500;
@@ -220,14 +250,29 @@
           const btn = document.createElement('button');
           btn.ariaSelected = String(!isSetupOpen && s.active);
           if (s.muted) btn.classList.add('muted');
-          btn.title = s.muted ? `${s.name} (Muted)` : s.name;
 
-          // Service Icon
+          const statusText = {
+            stale: 'Quiet for a while — may have missed something',
+            dead: 'Not receiving updates — check the tab',
+            login: 'Needs sign-in — won’t notify until logged in',
+            asleep: 'Sleeping to save memory (RAM optimization)',
+          }[s.status];
+          btn.title = [s.muted ? `${s.name} (Muted)` : s.name, statusText].filter(Boolean).join(' — ');
+
+          // Service Icon (+ connection-status dot, skipped for the healthy 'live' case)
+          const iconWrap = document.createElement('span');
+          iconWrap.className = 'tab-icon-wrap';
           const img = document.createElement('img');
           img.className = 'tab-icon';
           img.src = s.icon || genericIcon;
           img.onerror = () => { img.src = genericIcon; };
-          btn.append(img);
+          iconWrap.append(img);
+          if (s.status && s.status !== 'live') {
+            const dot = document.createElement('span');
+            dot.className = 'status-dot ' + s.status;
+            iconWrap.append(dot);
+          }
+          btn.append(iconWrap);
 
           // Service Name
           const nameSpan = document.createElement('span');
